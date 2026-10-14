@@ -185,7 +185,19 @@ def _run_download_task(task_id: str, url: str, mode: str, quality: str):
         "progress_hooks": [_progress_hook_factory(task_id)],
         "quiet": True,
         "no_warnings": True,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["ios", "android"]
+            }
+        },
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+        },
     }
+    cookie_path = BASE_DIR / "cookies.txt"
+    if cookie_path.exists():
+        opts["cookiefile"] = str(cookie_path)
+
     if ffmpeg_dir:
         opts["ffmpeg_location"] = ffmpeg_dir
 
@@ -257,8 +269,10 @@ def _run_download_task(task_id: str, url: str, mode: str, quality: str):
 
     except yt_dlp.utils.DownloadError as de:
         err_msg = str(de).lower()
-        if any(w in err_msg for w in ("age", "sign in", "confirm your age")):
-            readable_err = "Bu video yaş veya oturum sınırlamalı olduğu için indirilemiyor."
+        if "confirm your age" in err_msg or "age-restricted" in err_msg:
+            readable_err = "Bu video yaş sınırlı olduğu için YouTube oturumu gerektiriyor."
+        elif "sign in to confirm you're not a bot" in err_msg:
+            readable_err = "YouTube bot koruması algılandı. Lütfen birkaç saniye sonra tekrar deneyin."
         elif "private" in err_msg:
             readable_err = "Bu video gizli veya erişime kapalı."
         elif "copyright" in err_msg:
@@ -301,7 +315,18 @@ async def get_video_info(req: InfoRequest):
             "skip_download": True,
             "quiet": True,
             "no_warnings": True,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["ios", "android"]
+                }
+            },
+            "http_headers": {
+                "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+            },
         }
+        cookie_path = BASE_DIR / "cookies.txt"
+        if cookie_path.exists():
+            opts["cookiefile"] = str(cookie_path)
         with yt_dlp.YoutubeDL(opts) as ydl:
             return ydl.extract_info(url, download=False)
 
