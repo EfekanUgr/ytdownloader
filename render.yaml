@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: downloader-api
+    env: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: Dockerfile

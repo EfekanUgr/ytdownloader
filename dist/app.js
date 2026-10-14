@@ -43,9 +43,13 @@
     const saved = localStorage.getItem('downloader_api_url');
     if (saved && saved.trim()) return cleanUrl(saved);
     if (window.CONFIG && window.CONFIG.DEFAULT_API_URL) {
-      return cleanUrl(window.CONFIG.DEFAULT_API_URL);
+      const def = cleanUrl(window.CONFIG.DEFAULT_API_URL);
+      if (window.location.protocol === 'https:' && (def.includes('127.0.0.1') || def.includes('localhost'))) {
+        return '';
+      }
+      return def;
     }
-    return 'http://127.0.0.1:8000';
+    return window.location.protocol === 'https:' ? '' : 'http://127.0.0.1:8000';
   }
 
   function setApiUrl(url) {
@@ -187,6 +191,14 @@
       });
     }
 
+    if (quickApiInput) {
+      quickApiInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          if (quickApiSaveBtn) quickApiSaveBtn.click();
+        }
+      });
+    }
+
     // İndir Butonu
     startDownloadBtn.addEventListener('click', () => {
       const val = urlInput.value.trim();
@@ -238,66 +250,84 @@
   }
 
   // --- API SAĞLIK KONTROLÜ & RENDER UYANDIRMA ---
-  let healthTimer = null;
+  let healthSecondsTimer = null;
+  let healthInProgress = false;
 
-  async function checkApiHealth(autoRetry = false) {
-    clearTimeout(healthTimer);
+  async function checkApiHealth(autoRetry = true) {
+    const base = getApiUrl();
+    const isHttps = window.location.protocol === 'https:';
+    const isLocal = !base || base.includes('127.0.0.1') || base.includes('localhost');
+
+    // Eğer canlı Netlify ortamındaysak ve geçerli bir API adresi henüz girilmemişse
+    if (isHttps && isLocal) {
+      clearInterval(healthSecondsTimer);
+      healthInProgress = false;
+      apiStatusBtn.className = 'api-pill warning';
+      apiStatusText.textContent = 'API Ayarı Gerekli';
+
+      if (quickApiBar) quickApiBar.style.display = 'block';
+      if (quickApiStatus) {
+        quickApiStatus.style.display = 'block';
+        quickApiStatus.className = 'api-bar-status loading';
+        quickApiStatus.textContent = 'ℹ Render web servisi linkinizi yukarıya girip Bağlan butonuna tıklayın.';
+      }
+      return;
+    }
+
+    if (healthInProgress) return;
+    healthInProgress = true;
+    clearInterval(healthSecondsTimer);
+
     apiStatusBtn.className = 'api-pill checking';
     apiStatusText.textContent = 'API Bağlanıyor...';
 
+    if (quickApiBar) quickApiBar.style.display = 'block';
     if (quickApiStatus) {
       quickApiStatus.style.display = 'block';
       quickApiStatus.className = 'api-bar-status loading';
-      quickApiStatus.textContent = '⏳ API sunucusuna bağlanılıyor...';
+      quickApiStatus.textContent = '⏳ Render sunucusuna bağlanılıyor...';
     }
 
-    const base = getApiUrl();
+    let elapsed = 0;
+    healthSecondsTimer = setInterval(() => {
+      elapsed++;
+      apiStatusText.textContent = `Sunucu Uyanıyor (${elapsed}s)...`;
+      if (quickApiStatus) {
+        quickApiStatus.textContent = `⏳ Render ücretsiz sunucusu uyandırılıyor (~30-50 sn sürebilir, geçen: ${elapsed} sn)... Lütfen bekleyin.`;
+      }
+    }, 1000);
+
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-      
-      const res = await fetch(`${base}/health`, { 
+      // Render ücretsiz soğuk başlatma 35-50 saniye sürebilir; erken kesmiyoruz (75 sn)
+      const timeoutId = setTimeout(() => controller.abort(), 75000);
+
+      const res = await fetch(`${base}/health`, {
         method: 'GET',
         signal: controller.signal
       });
       clearTimeout(timeoutId);
+      clearInterval(healthSecondsTimer);
+      healthInProgress = false;
 
       if (res.ok) {
-        // Başarılı
-        State.wakeAttempts = 0;
         apiStatusBtn.className = 'api-pill connected';
         apiStatusText.textContent = 'API Bağlı';
 
         if (quickApiStatus) {
           quickApiStatus.className = 'api-bar-status ok';
-          quickApiStatus.textContent = '✔ Bağlantı Başarılı! Sunucu hazır.';
+          quickApiStatus.textContent = '✔ Bağlantı Başarılı! Sunucu hazır ve aktif.';
           setTimeout(() => {
             if (quickApiBar) quickApiBar.style.display = 'none';
-          }, 1800);
+          }, 2000);
         }
         return;
       }
       throw new Error(`HTTP ${res.status}`);
     } catch (err) {
-      if (autoRetry && State.wakeAttempts < State.maxWakeAttempts) {
-        State.wakeAttempts++;
-        const elapsed = State.wakeAttempts * 3;
-        apiStatusBtn.className = 'api-pill checking';
-        apiStatusText.textContent = `Sunucu Uyanıyor (${elapsed}s)...`;
+      clearInterval(healthSecondsTimer);
+      healthInProgress = false;
 
-        if (quickApiBar) quickApiBar.style.display = 'block';
-        if (quickApiStatus) {
-          quickApiStatus.style.display = 'block';
-          quickApiStatus.className = 'api-bar-status loading';
-          quickApiStatus.textContent = `⏳ Render ücretsiz sunucusu uyandırılıyor (~30-40 sn sürebilir, deneme: ${State.wakeAttempts})...`;
-        }
-
-        healthTimer = setTimeout(() => checkApiHealth(true), 3000);
-        return;
-      }
-
-      // Bağlantı Başarısız
-      State.wakeAttempts = 0;
       apiStatusBtn.className = 'api-pill warning';
       apiStatusText.textContent = 'API Ayarı Gerekli';
 
@@ -305,7 +335,10 @@
       if (quickApiStatus) {
         quickApiStatus.style.display = 'block';
         quickApiStatus.className = 'api-bar-status fail';
-        quickApiStatus.textContent = '✖ Sunucuya ulaşılamadı. Lütfen Render linkinizin doğruluğunu kontrol edin.';
+        const isAbort = err.name === 'AbortError';
+        quickApiStatus.textContent = isAbort
+          ? '✖ Sunucu 75 saniye içinde yanıt vermedi. Render dashboard\'undan servisin durumunu kontrol edin.'
+          : '✖ Sunucuya ulaşılamadı. Lütfen Render linkinizi ve servisin aktif olduğunu kontrol edin.';
       }
     }
   }
@@ -319,10 +352,14 @@
 
     testResult.style.display = 'block';
     testResult.className = 'test-result';
-    testResult.textContent = 'Test ediliyor...';
+    testResult.textContent = 'Test ediliyor (uykudaysa ~30 sn sürebilir)...';
 
     try {
-      const res = await fetch(`${candidate}/health`, { method: 'GET' });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 65000);
+      const res = await fetch(`${candidate}/health`, { method: 'GET', signal: controller.signal });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const data = await res.json();
         showTestResult(true, `✔ Bağlantı Başarılı! (Versiyon: ${data.version || '1.0.0'}, FFmpeg: ${data.ffmpeg || 'Hazır'})`);
