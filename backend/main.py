@@ -31,7 +31,7 @@ logger = logging.getLogger("downloader-api")
 app = FastAPI(
     title="Downloader(+) API",
     description="YouTube ve web platformları için yüksek hızlı video, müzik ve altyazı indirme servisi",
-    version="1.0.0"
+    version="1.3.0"
 )
 
 # CORS — Netlify ve tüm web istemcileri için açık
@@ -265,12 +265,15 @@ def _build_ydl_opts(
     task_dir: Path,
     ffmpeg_dir: Optional[str] = None,
     progress_hook = None,
-    use_cookies: bool = True,
+    use_cookies: bool = False,
     player_clients: Optional[list] = None,
     override_format: Optional[str] = None
 ) -> Dict[str, Any]:
     """Video, müzik ve altyazı modları için standartlaştırılmış yt-dlp ayarlarını üretir."""
     cf = _get_cookiefile() if use_cookies else None
+    
+    # Varsayılan istemci: visionos (Bulut IP'lerinde bot korumasını ve 403 engellerini tamamen aşan Apple HLS/HTTPS motoru)
+    clients = player_clients or ["visionos"]
     
     opts: Dict[str, Any] = {
         "outtmpl": str(task_dir / "%(title).100s [%(id)s].%(ext)s"),
@@ -281,13 +284,11 @@ def _build_ydl_opts(
         "quiet": True,
         "no_warnings": True,
         "remote_components": ["ejs:github"],
+        "extractor_args": {"youtube": {"player_client": clients}},
     }
 
     if shutil.which("node"):
         opts["js_runtimes"] = {"node": {}}
-
-    if player_clients:
-        opts["extractor_args"] = {"youtube": {"player_client": player_clients}}
 
     if progress_hook:
         opts["progress_hooks"] = [progress_hook]
@@ -303,33 +304,29 @@ def _build_ydl_opts(
     elif mode == "video":
         if quality == "1080":
             fmt = (
+                "bv*[height<=1080]+ba/b[height<=1080]/"
                 "bv*[protocol^=m3u8][height<=1080]+ba*[protocol^=m3u8]/"
-                "b*[protocol^=m3u8][height<=1080]/"
-                "bestvideo[height<=1080]+bestaudio[ext=m4a]/"
                 "bestvideo[height<=1080]+bestaudio/"
                 "best[height<=1080]/best"
             )
         elif quality == "720":
             fmt = (
+                "bv*[height<=720]+ba/b[height<=720]/"
                 "bv*[protocol^=m3u8][height<=720]+ba*[protocol^=m3u8]/"
-                "b*[protocol^=m3u8][height<=720]/"
-                "bestvideo[height<=720]+bestaudio[ext=m4a]/"
                 "bestvideo[height<=720]+bestaudio/"
                 "best[height<=720]/best"
             )
         elif quality == "480":
             fmt = (
+                "bv*[height<=480]+ba/b[height<=480]/"
                 "bv*[protocol^=m3u8][height<=480]+ba*[protocol^=m3u8]/"
-                "b*[protocol^=m3u8][height<=480]/"
-                "bestvideo[height<=480]+bestaudio[ext=m4a]/"
                 "bestvideo[height<=480]+bestaudio/"
                 "best[height<=480]/best"
             )
         else:
             fmt = (
+                "bv*+ba/b/"
                 "bv*[protocol^=m3u8]+ba*[protocol^=m3u8]/"
-                "b*[protocol^=m3u8]/"
-                "bestvideo*+bestaudio[ext=m4a]/"
                 "bestvideo*+bestaudio/best"
             )
         
@@ -338,7 +335,7 @@ def _build_ydl_opts(
         opts["embed_metadata"] = True
 
     elif mode == "music":
-        opts["format"] = "ba*[protocol^=m3u8]/bestaudio[ext=m4a]/bestaudio/best"
+        opts["format"] = "ba/b/best"
         opts["embed_metadata"] = True
         opts["postprocessors"] = [{
             "key": "FFmpegExtractAudio",
@@ -370,12 +367,17 @@ def _run_download_task(task_id: str, url: str, mode: str, quality: str):
     
     # 4 Kademeli Otomatik Çözümleme Stratejisi
     cf = _get_cookiefile()
-    strategies = []
+    strategies = [
+        # 1. Aşama: Temiz VisionOS istemcisi (Çerezsiz, bot engeli olmayan direkt HLS/HTTPS akışı)
+        {"name": "visionos_temiz", "use_cookies": False, "clients": ["visionos"], "format": None},
+    ]
     if cf:
-        strategies.append({"name": "cerezli_hls", "use_cookies": True, "clients": None, "format": None})
-    strategies.append({"name": "cerezsiz_hls", "use_cookies": False, "clients": None, "format": None})
-    strategies.append({"name": "android_vr", "use_cookies": False, "clients": ["android_vr", "web_embedded"], "format": None})
-    strategies.append({"name": "direct_best", "use_cookies": False, "clients": ["mweb"], "format": "best"})
+        # Eğer özel veya üye girişi gerekirse çerezli VisionOS
+        strategies.append({"name": "visionos_cerezli", "use_cookies": True, "clients": ["visionos"], "format": None})
+    # 2. Aşama: Android istemcisi (Google'ın yerel mobil CDN akışı - veri merkezi IP'lerine açık)
+    strategies.append({"name": "android_mobil", "use_cookies": False, "clients": ["android"], "format": "ba/b/best"})
+    # 3. Aşama: Android VR istemcisi
+    strategies.append({"name": "android_vr", "use_cookies": False, "clients": ["android_vr"], "format": "best"})
 
     last_error = None
     title = "indirilen_dosya"
@@ -459,7 +461,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "Downloader(+) API",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "ffmpeg": "ready" if ffmpeg_ready else "missing",
         "has_cookies": cf is not None,
         "cookie_bytes": cf_size,
@@ -476,12 +478,13 @@ async def get_video_info(req: InfoRequest):
 
     def _extract():
         cf = _get_cookiefile()
-        strategies = []
+        strategies = [
+            {"use_cookies": False, "clients": ["visionos"]},
+        ]
         if cf:
-            strategies.append({"use_cookies": True, "clients": None})
-        strategies.append({"use_cookies": False, "clients": None})
-        strategies.append({"use_cookies": False, "clients": ["android_vr", "web_embedded"]})
-        strategies.append({"use_cookies": False, "clients": ["mweb"]})
+            strategies.append({"use_cookies": True, "clients": ["visionos"]})
+        strategies.append({"use_cookies": False, "clients": ["android"]})
+        strategies.append({"use_cookies": False, "clients": ["android_vr"]})
 
         last_e = None
         for strat in strategies:
@@ -491,13 +494,12 @@ async def get_video_info(req: InfoRequest):
                 "no_warnings": True,
                 "retries": 3,
                 "remote_components": ["ejs:github"],
+                "extractor_args": {"youtube": {"player_client": strat["clients"]}},
             }
             if shutil.which("node"):
                 opts["js_runtimes"] = {"node": {}}
             if strat["use_cookies"] and cf:
                 opts["cookiefile"] = cf
-            if strat["clients"]:
-                opts["extractor_args"] = {"youtube": {"player_client": strat["clients"]}}
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     return ydl.extract_info(url, download=False)
