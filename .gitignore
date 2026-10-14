@@ -1,0 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Büyük ikili dosyalar (GitHub 100MB sınırını aşar)
+# Render/Docker ortamında FFmpeg apt-get ile otomatik kurulur.
+araçlar/ffmpeg/
+araçlar/*.zip
+*.exe
+
+# İndirilen medya ve geçici dosyalar
+indirilen video/
+indirilen müzik/
+indirilen altyazı/
+temp_downloads/
+backend/temp_downloads/
+*.part
+*.ytdl
+*.temp
+
+# Gizli bilgiler ve oturum çerezleri
+cookies.txt
+env_cookies.txt
+.freebuff/
+
+# OS / Editör dosyaları
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

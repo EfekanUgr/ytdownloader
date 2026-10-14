@@ -1,0 +1,32 @@
+============================================================
+  Freebuff İndirici — Kullanım Kılavuzu
+============================================================
+
+NE YAPAR?
+  - video.bat   -> Video indirir (MP4, en yüksek kalite)  -> "indirilen video" klasörü
+  - muzik.bat   -> Müzik indirir (MP3, en yüksek kalite)  -> "indirilen müzik" klasörü
+  - altyazi.bat -> Sadece altyazı indirir (TR+EN, srt)    -> "indirilen altyazı" klasörü
+
+NASIL KULLANILIR?
+  1. İstediğin modun .bat dosyasına çift tıklayın (ör. video.bat).
+  2. Açılan pencereye linki yapıştırıp Enter'a basın. İndirme başlar.
+  3. Birden fazla linki aynı anda yapıştırabilirsiniz (boşluk veya virgülle ayırın).
+     Linkler sıraya girer; biri bitince sıradaki başlar.
+  4. İndirme sürerken de yeni link yapıştırabilirsiniz — sıraya eklenir.
+  5. İndirme hızı ve ilerleme, indirme sırasında ekranda görünür.
+
+ÇIKIŞ / İPTAL
+  - q yazıp Enter -> bekleyen iş bitince program kapanır.
+  - Ctrl+C        -> o anki indirme anında iptal edilir.
+
+ÖNEMLİ NOTLAR
+  - İlk çalıştırmada Python (yoksa), yt-dlp ve ffmpeg otomatik kurulur.
+    İnternet bağlantısı gerekir; bu bir kez olur.
+  - Yaş sınırlı videolar indirilmez, otomatik atlanır.
+  - İnternet koparsa yarım kalan indirme sürdürülmez; o iş iptal edilir.
+    Bağlantı gelince dosyayı yeniden yapıştırmanız yeterli.
+  - Oynatma listesi (playlist) linkleri indirilmez; tek video linkleri çalışır.
+
+AYAR DEĞİŞTİRME (gerekirse)
+  indirici.py dosyasını Not Defteri ile açın; en üstteki AYARLAR bölümünden
+  altyazı dili, kalite gibi ayarları değiştirebilirsiniz.
