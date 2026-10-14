@@ -228,14 +228,7 @@ def format_error_message(err: Exception) -> str:
     """Hata mesajlarını kullanıcı dostu, açıklayıcı Türkçe metinlere dönüştürür."""
     err_msg = str(err).lower().replace("’", "'").replace("`", "'")
     if "confirm your age" in err_msg or "age-restricted" in err_msg:
-        return "Bu video yaş sınırlı olduğu için hesap doğrulaması veya çerez gerektiriyor."
-    if (
-        "sign in to confirm" in err_msg
-        or "not a bot" in err_msg
-        or "confirm you are not a bot" in err_msg
-        or "failed to extract any player response" in err_msg
-    ):
-        return "YouTube bot koruması algılandı. Çerez (cookies) ekleyerek bu engeli kalıcı olarak aşabilirsiniz."
+        return "Bu video yaş kısıtlamalı bir içeriktir."
     if "private" in err_msg:
         return "Bu video gizli veya erişime kapalı."
     if "members-only" in err_msg or "join this channel" in err_msg:
@@ -250,6 +243,15 @@ def format_error_message(err: Exception) -> str:
         return "Bu içerik coğrafi bölge kısıtlaması nedeniyle indirilemiyor."
     if "altyazı bulunamadı" in err_msg or "no subtitles" in err_msg:
         return "Bu video için indirilebilir altyazı dosyası bulunamadı."
+    if (
+        "sign in to confirm" in err_msg
+        or "not a bot" in err_msg
+        or "confirm you are not a bot" in err_msg
+        or "failed to extract any player response" in err_msg
+        or "403" in err_msg
+        or "forbidden" in err_msg
+    ):
+        return "YouTube bulut sunucusunu geçici olarak kısıtladı. Lütfen tekrar deneyin."
     
     # Teknik karmaşık hata mesajlarını temizle
     cleaned = re.sub(r'https?://\S+', '', str(err))
@@ -257,9 +259,18 @@ def format_error_message(err: Exception) -> str:
     return f"İndirme başarısız: {cleaned[:140]}" if cleaned else "İndirme sırasında bir hata oluştu."
 
 
-def _build_ydl_opts(mode: str, quality: str, task_dir: Path, ffmpeg_dir: Optional[str] = None, progress_hook = None) -> Dict[str, Any]:
+def _build_ydl_opts(
+    mode: str,
+    quality: str,
+    task_dir: Path,
+    ffmpeg_dir: Optional[str] = None,
+    progress_hook = None,
+    use_cookies: bool = True,
+    player_clients: Optional[list] = None,
+    override_format: Optional[str] = None
+) -> Dict[str, Any]:
     """Video, müzik ve altyazı modları için standartlaştırılmış yt-dlp ayarlarını üretir."""
-    cf = _get_cookiefile()
+    cf = _get_cookiefile() if use_cookies else None
     
     opts: Dict[str, Any] = {
         "outtmpl": str(task_dir / "%(title).100s [%(id)s].%(ext)s"),
@@ -275,6 +286,9 @@ def _build_ydl_opts(mode: str, quality: str, task_dir: Path, ffmpeg_dir: Optiona
     if shutil.which("node"):
         opts["js_runtimes"] = {"node": {}}
 
+    if player_clients:
+        opts["extractor_args"] = {"youtube": {"player_client": player_clients}}
+
     if progress_hook:
         opts["progress_hooks"] = [progress_hook]
 
@@ -284,22 +298,47 @@ def _build_ydl_opts(mode: str, quality: str, task_dir: Path, ffmpeg_dir: Optiona
     if ffmpeg_dir:
         opts["ffmpeg_location"] = ffmpeg_dir
 
-    if mode == "video":
+    if override_format:
+        opts["format"] = override_format
+    elif mode == "video":
         if quality == "1080":
-            fmt = "bestvideo[height<=1080]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
+            fmt = (
+                "bv*[protocol^=m3u8][height<=1080]+ba*[protocol^=m3u8]/"
+                "b*[protocol^=m3u8][height<=1080]/"
+                "bestvideo[height<=1080]+bestaudio[ext=m4a]/"
+                "bestvideo[height<=1080]+bestaudio/"
+                "best[height<=1080]/best"
+            )
         elif quality == "720":
-            fmt = "bestvideo[height<=720]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/best"
+            fmt = (
+                "bv*[protocol^=m3u8][height<=720]+ba*[protocol^=m3u8]/"
+                "b*[protocol^=m3u8][height<=720]/"
+                "bestvideo[height<=720]+bestaudio[ext=m4a]/"
+                "bestvideo[height<=720]+bestaudio/"
+                "best[height<=720]/best"
+            )
         elif quality == "480":
-            fmt = "bestvideo[height<=480]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]/best"
+            fmt = (
+                "bv*[protocol^=m3u8][height<=480]+ba*[protocol^=m3u8]/"
+                "b*[protocol^=m3u8][height<=480]/"
+                "bestvideo[height<=480]+bestaudio[ext=m4a]/"
+                "bestvideo[height<=480]+bestaudio/"
+                "best[height<=480]/best"
+            )
         else:
-            fmt = "bestvideo*+bestaudio[ext=m4a]/bestvideo*+bestaudio/best"
+            fmt = (
+                "bv*[protocol^=m3u8]+ba*[protocol^=m3u8]/"
+                "b*[protocol^=m3u8]/"
+                "bestvideo*+bestaudio[ext=m4a]/"
+                "bestvideo*+bestaudio/best"
+            )
         
         opts["format"] = fmt
         opts["merge_output_format"] = "mp4"
         opts["embed_metadata"] = True
 
     elif mode == "music":
-        opts["format"] = "bestaudio/best"
+        opts["format"] = "ba*[protocol^=m3u8]/bestaudio[ext=m4a]/bestaudio/best"
         opts["embed_metadata"] = True
         opts["postprocessors"] = [{
             "key": "FFmpegExtractAudio",
@@ -329,51 +368,79 @@ def _run_download_task(task_id: str, url: str, mode: str, quality: str):
     task_dir.mkdir(parents=True, exist_ok=True)
     ffmpeg_dir = find_ffmpeg_path()
     
-    opts = _build_ydl_opts(mode, quality, task_dir, ffmpeg_dir, progress_hook=_progress_hook_factory(task_id))
+    # 4 Kademeli Otomatik Çözümleme Stratejisi
+    cf = _get_cookiefile()
+    strategies = []
+    if cf:
+        strategies.append({"name": "cerezli_hls", "use_cookies": True, "clients": None, "format": None})
+    strategies.append({"name": "cerezsiz_hls", "use_cookies": False, "clients": None, "format": None})
+    strategies.append({"name": "android_vr", "use_cookies": False, "clients": ["android_vr", "web_embedded"], "format": None})
+    strategies.append({"name": "direct_best", "use_cookies": False, "clients": ["mweb"], "format": "best"})
 
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            if mode == "video":
-                ydl.add_post_processor(SesGuvenliPP(ydl, ffmpeg_dir))
-            
-            info = ydl.extract_info(url, download=True)
-            title = (info or {}).get("title") or "indirilen_dosya"
+    last_error = None
+    title = "indirilen_dosya"
+    files = []
 
-        # İndirilen dosyayı bul
-        files = [f for f in task_dir.rglob("*") if f.is_file() and not f.name.endswith(".part") and not f.name.endswith(".ytdl")]
-        if not files:
-            if mode == "subtitle":
-                raise RuntimeError("Bu video için indirilebilir altyazı bulunamadı.")
-            raise RuntimeError("Dosya indirilemedi veya çıktı bulunamadı.")
-        
-        downloaded_file = max(files, key=lambda f: f.stat().st_size)
-        file_size_bytes = downloaded_file.stat().st_size
-        
-        size_str = (
-            f"{file_size_bytes / (1024 * 1024 * 1024):.2f} GB" if file_size_bytes > 1024 * 1024 * 1024 else
-            f"{file_size_bytes / (1024 * 1024):.1f} MB" if file_size_bytes > 1024 * 1024 else
-            f"{file_size_bytes / 1024:.0f} KB"
-        )
+    for strat in strategies:
+        try:
+            logger.info(f"[{task_id}] Deneniyor: {strat['name']}")
+            opts = _build_ydl_opts(
+                mode=mode,
+                quality=quality,
+                task_dir=task_dir,
+                ffmpeg_dir=ffmpeg_dir,
+                progress_hook=_progress_hook_factory(task_id),
+                use_cookies=strat["use_cookies"],
+                player_clients=strat["clients"],
+                override_format=strat["format"]
+            )
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                if mode == "video":
+                    ydl.add_post_processor(SesGuvenliPP(ydl, ffmpeg_dir))
+                
+                info = ydl.extract_info(url, download=True)
+                title = (info or {}).get("title") or title
 
-        task["status"] = "completed"
-        task["progress"] = 100.0
-        task["speed"] = ""
-        task["title"] = title
-        task["file_path"] = str(downloaded_file)
-        task["file_name"] = downloaded_file.name
-        task["file_size"] = size_str
-        logger.info(f"Görev tamamlandı [{task_id}]: {title} ({size_str})")
+            files = [f for f in task_dir.rglob("*") if f.is_file() and not f.name.endswith(".part") and not f.name.endswith(".ytdl")]
+            if files:
+                last_error = None
+                break
+        except Exception as e:
+            last_error = e
+            err_lower = str(e).lower()
+            logger.warning(f"[{task_id}] Strateji {strat['name']} hatası: {e}")
+            if "copyright" in err_lower or "unavailable" in err_lower or "does not exist" in err_lower:
+                break
+            continue
 
-    except Exception as e:
-        readable_err = format_error_message(e)
+    if last_error:
+        readable_err = format_error_message(last_error)
         task["status"] = "error"
         task["error"] = readable_err
-        logger.error(f"Görev hatası [{task_id}]: {readable_err} ({e})")
-        # Hata durumunda yarım kalan artık dosyaları hemen temizle (Disk dolmasını önle)
+        logger.error(f"Görev hatası [{task_id}]: {readable_err} ({last_error})")
         try:
             shutil.rmtree(task_dir, ignore_errors=True)
         except Exception:
             pass
+        return
+
+    downloaded_file = max(files, key=lambda f: f.stat().st_size)
+    file_size_bytes = downloaded_file.stat().st_size
+    
+    size_str = (
+        f"{file_size_bytes / (1024 * 1024 * 1024):.2f} GB" if file_size_bytes > 1024 * 1024 * 1024 else
+        f"{file_size_bytes / (1024 * 1024):.1f} MB" if file_size_bytes > 1024 * 1024 else
+        f"{file_size_bytes / 1024:.0f} KB"
+    )
+
+    task["status"] = "completed"
+    task["progress"] = 100.0
+    task["speed"] = ""
+    task["title"] = title
+    task["file_path"] = str(downloaded_file)
+    task["file_name"] = downloaded_file.name
+    task["file_size"] = size_str
+    logger.info(f"Görev tamamlandı [{task_id}]: {title} ({size_str})")
 
 
 @app.get("/")
@@ -392,7 +459,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "Downloader(+) API",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "ffmpeg": "ready" if ffmpeg_ready else "missing",
         "has_cookies": cf is not None,
         "cookie_bytes": cf_size,
@@ -409,19 +476,37 @@ async def get_video_info(req: InfoRequest):
 
     def _extract():
         cf = _get_cookiefile()
-        opts = {
-            "skip_download": True,
-            "quiet": True,
-            "no_warnings": True,
-            "retries": 5,
-            "remote_components": ["ejs:github"],
-        }
-        if shutil.which("node"):
-            opts["js_runtimes"] = {"node": {}}
+        strategies = []
         if cf:
-            opts["cookiefile"] = cf
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            return ydl.extract_info(url, download=False)
+            strategies.append({"use_cookies": True, "clients": None})
+        strategies.append({"use_cookies": False, "clients": None})
+        strategies.append({"use_cookies": False, "clients": ["android_vr", "web_embedded"]})
+        strategies.append({"use_cookies": False, "clients": ["mweb"]})
+
+        last_e = None
+        for strat in strategies:
+            opts = {
+                "skip_download": True,
+                "quiet": True,
+                "no_warnings": True,
+                "retries": 3,
+                "remote_components": ["ejs:github"],
+            }
+            if shutil.which("node"):
+                opts["js_runtimes"] = {"node": {}}
+            if strat["use_cookies"] and cf:
+                opts["cookiefile"] = cf
+            if strat["clients"]:
+                opts["extractor_args"] = {"youtube": {"player_client": strat["clients"]}}
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    return ydl.extract_info(url, download=False)
+            except Exception as e:
+                last_e = e
+                continue
+        if last_e:
+            raise last_e
+        raise RuntimeError("Video bilgisi alınamadı.")
 
     try:
         info = await asyncio.to_thread(_extract)
