@@ -39,16 +39,25 @@
   }
 
   function getApiUrl() {
+    const isHttps = window.location.protocol === 'https:';
     const saved = localStorage.getItem('downloader_api_url');
-    if (saved && saved.trim()) return cleanUrl(saved);
+
+    // Canlı sitede (HTTPS) geçmiş testlerden kalan 127.0.0.1 veya localhost kalıntılarını otomatik sil
+    if (saved && isHttps && (saved.includes('127.0.0.1') || saved.includes('localhost') || !saved.startsWith('https://'))) {
+      localStorage.removeItem('downloader_api_url');
+    }
+
+    const validSaved = localStorage.getItem('downloader_api_url');
+    if (validSaved && validSaved.trim()) return cleanUrl(validSaved);
+
     if (window.CONFIG && window.CONFIG.DEFAULT_API_URL) {
       const def = cleanUrl(window.CONFIG.DEFAULT_API_URL);
-      if (window.location.protocol === 'https:' && (def.includes('127.0.0.1') || def.includes('localhost'))) {
+      if (isHttps && (def.includes('127.0.0.1') || def.includes('localhost'))) {
         return '';
       }
       return def;
     }
-    return window.location.protocol === 'https:' ? '' : 'http://127.0.0.1:8000';
+    return isHttps ? '' : 'http://127.0.0.1:8000';
   }
 
   function setApiUrl(url) {
