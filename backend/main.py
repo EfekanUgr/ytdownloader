@@ -631,7 +631,6 @@ def download_file(task_id: str, background_tasks: BackgroundTasks):
         path=file_path,
         media_type=media_type,
         filename=filename,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
 
