@@ -260,7 +260,6 @@ def format_error_message(err: Exception) -> str:
 def _build_ydl_opts(mode: str, quality: str, task_dir: Path, ffmpeg_dir: Optional[str] = None, progress_hook = None) -> Dict[str, Any]:
     """Video, müzik ve altyazı modları için standartlaştırılmış yt-dlp ayarlarını üretir."""
     cf = _get_cookiefile()
-    clients = ["web", "mweb", "android", "ios"] if cf else ["android", "ios", "web"]
     
     opts: Dict[str, Any] = {
         "outtmpl": str(task_dir / "%(title).100s [%(id)s].%(ext)s"),
@@ -270,11 +269,7 @@ def _build_ydl_opts(mode: str, quality: str, task_dir: Path, ffmpeg_dir: Optiona
         "windowsfilenames": True,
         "quiet": True,
         "no_warnings": True,
-        "extractor_args": {
-            "youtube": {
-                "player_client": clients
-            }
-        },
+        "remote_components": ["ejs:github"],
     }
 
     if shutil.which("node"):
@@ -397,7 +392,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "Downloader(+) API",
-        "version": "1.0.9",
+        "version": "1.1.0",
         "ffmpeg": "ready" if ffmpeg_ready else "missing",
         "has_cookies": cf is not None,
         "cookie_bytes": cf_size,
@@ -414,17 +409,12 @@ async def get_video_info(req: InfoRequest):
 
     def _extract():
         cf = _get_cookiefile()
-        clients = ["web", "mweb", "android", "ios"] if cf else ["android", "ios", "web"]
         opts = {
             "skip_download": True,
             "quiet": True,
             "no_warnings": True,
             "retries": 5,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": clients
-                }
-            },
+            "remote_components": ["ejs:github"],
         }
         if shutil.which("node"):
             opts["js_runtimes"] = {"node": {}}
