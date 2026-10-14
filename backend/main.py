@@ -234,6 +234,8 @@ def format_error_message(err: Exception) -> str:
         return "Telif hakkı kısıtlaması nedeniyle video indirilemiyor."
     if "unsupported url" in err_msg or "is not a valid url" in err_msg:
         return "Desteklenmeyen veya geçersiz bir video linki girdiniz."
+    if "geo" in err_msg or "country" in err_msg or "location" in err_msg:
+        return "Bu içerik coğrafi bölge kısıtlaması nedeniyle indirilemiyor."
     if "altyazı bulunamadı" in err_msg or "no subtitles" in err_msg:
         return "Bu video için indirilebilir altyazı dosyası bulunamadı."
     
@@ -253,6 +255,11 @@ def _build_ydl_opts(mode: str, quality: str, task_dir: Path, ffmpeg_dir: Optiona
         "windowsfilenames": True,
         "quiet": True,
         "no_warnings": True,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "ios", "web"]
+            }
+        },
     }
 
     if shutil.which("node"):
@@ -369,7 +376,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "Downloader(+) API",
-        "version": "1.0.7",
+        "version": "1.0.8",
         "ffmpeg": "ready" if ffmpeg_ready else "missing",
         "has_cookies": _get_cookiefile() is not None,
         "ytdlp_version": ytdlp_ver,
@@ -389,6 +396,11 @@ async def get_video_info(req: InfoRequest):
             "quiet": True,
             "no_warnings": True,
             "retries": 5,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "ios", "web"]
+                }
+            },
         }
         if shutil.which("node"):
             opts["js_runtimes"] = {"node": {}}
@@ -400,7 +412,7 @@ async def get_video_info(req: InfoRequest):
 
     try:
         info = await asyncio.to_thread(_extract)
-        duration = info.get("duration", 0)
+        duration = int(info.get("duration") or 0)
         minutes, seconds = divmod(duration, 60)
         dur_str = f"{minutes}:{seconds:02d}" if duration else ""
         
