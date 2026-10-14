@@ -93,3 +93,39 @@
 
 - İndirilen videoda ses olmaması sorunu (Opus codec) 17.08.2026'da tespit edilip düzeltildi.
 - Kod değişiklikleri manuel; gelecekte otomatik güncelleme mekanizması (örn. GitHub) düşünülebilir.
+
+---
+
+## G) Web Sürümü & CI/CD Canlıya Alma Raporu (14 Ekim 2026)
+
+> Bu bölüm, projenin masaüstü CLI aracından modern, tam duyarlı (mobil + masaüstü)
+> bir bulut web servisine dönüştürülme sürecini ve tamamlanan maddeleri özetler.
+
+### 1. Tamamlanan ve Canlıya Alınan Geliştirmeler:
+- **Tam Duyarlı Modern Web Arayüzü (`dist/`):**
+  - Göz yormayan derin obsidian (`#0c1017`) arayüz, glassmorphism kartlar, modern tipografi.
+  - Mobil ve PC için optimize edilmiş düzen; dokunmatik ekranlara ve geniş monitörlere özel dinamik grid.
+  - Video (MP4), Müzik (MP3 - 320 kbps), Altyazı (SRT) format sekmeleri.
+  - Canlı video önizleme kartı (kapak resmi, süre, kanal adı, başlık).
+  - Canlı ilerleme çubuğu, anlık indirme hızı (MB/s) ve kalan süre (sn) göstergeleri.
+  - İndirme tamamlandığında Web Audio API ile sesli bildirim (chime) ve otomatik cihaz indirmesi.
+  - İndirme geçmişi ve toplam indirilen dosya sayısı istatistiği (`localStorage`).
+  - Güvenlik: Çerezler, şifreler ve özel anahtarlar kesin olarak `.gitignore` ile korunmaktadır.
+
+- **FastAPI + yt-dlp + FFmpeg Backend Motoru (`backend/`):**
+  - Render.com üzerinde containerized (Docker) canlı servis (`https://ytdownloader-p8pr.onrender.com`).
+  - Universal ses codec dönüştürücüsü (`SesGuvenliPP`): MP4 içindeki Opus sesleri otomatik olarak AAC'ye dönüştürür.
+  - Otomatik geçici dosya ve klasör temizleyicisi: 30 dakikadan eski görevleri ve disk alanını otomatik temizler.
+  - FFmpeg + Node.js entegrasyonu: YouTube'un yeni JS n-challenge meydan okumalarını çözmek için Node.js eklendi.
+  - Çerez desteği altyapısı: `YOUTUBE_COOKIES` çevre değişkeni ve `cookies.txt` desteği kuruldu.
+
+- **GitHub + Netlify + Render CI/CD Otomasyonu:**
+  - Kod GitHub `main` dalına pushlandığı anda Netlify statik arayüzü (~15 sn), Render ise backend Docker konteynerini (~2-3 dk) otomatik olarak derleyip canlıya alır.
+
+### 2. Gelecek Yol Haritası (Sıradaki Geliştirmeler):
+1. **Çerez Entegrasyonu:** Render Environment üzerinden `YOUTUBE_COOKIES` tanımlanarak yaş kısıtlı ve veri merkezi IP engellerinin tamamen aşılması.
+2. **Toplu İndirme (Playlist / Kanal):** Tek bir link girildiğinde oynatma listesindeki tüm videoları sıraya alma ve zip olarak veya tek tek indirme.
+3. **Bant Genişliği ve Hız Sınırlaması:** Sunucu kaynaklarını ve kullanıcının internet kotasını dengeli kullanmak için hız limiti opsiyonu.
+4. **Gelişmiş Format Seçici:** 4K 60fps, 1440p 2K, WebM ve FLAC/WAV kayıpsız ses formatları.
+5. **Kuyruk Senkronizasyonu & Bulut İstatistikleri:** Birden fazla cihaz arasında senkronize indirme kuyruğu.
+

@@ -2,42 +2,47 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Downloader(+) — Video ve Müzik İndirici</title>
-  <meta name="description" content="YouTube ve web platformlarından video, MP3 müzik ve altyazıları en yüksek kalitede cihazınıza indirin. Hızlı, reklamsız ve sade.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Downloader(+) — Video, Müzik ve Altyazı İndirici</title>
+  <meta name="description" content="YouTube ve web platformlarından video (MP4), müzik (MP3 320kbps) ve altyazı (SRT) indirin. Reklamsız, sade, mobil ve masaüstü uyumlu.">
+  <meta name="theme-color" content="#0c1017">
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- ARKA PLAN IŞIKLARI -->
-  <div class="glow glow-1"></div>
-  <div class="glow glow-2"></div>
+  <!-- ARKA PLAN AMBİYANS IŞIĞI -->
+  <div class="ambient-glow ambient-1"></div>
+  <div class="ambient-glow ambient-2"></div>
 
-  <!-- ÜST ÇUBUK / NAV -->
-  <header class="navbar">
-    <div class="nav-container">
-      <div class="brand">
-        <div class="brand-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- ÜST MENÜ (NAVBAR) -->
+  <header class="site-header">
+    <div class="nav-wrapper">
+      <div class="brand-group">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/>
             <line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
         </div>
-        <span class="brand-name">Downloader<span class="brand-plus">(+)</span></span>
+        <div class="brand-text">
+          <span class="brand-title">Downloader<span class="plus-accent">(+)</span></span>
+          <span class="brand-sub">Universal Web Downloader</span>
+        </div>
       </div>
 
-      <div class="nav-actions">
+      <div class="header-actions">
         <!-- API Durum Butonu -->
-        <button id="apiStatusBtn" class="api-pill checking" title="API Durumu">
-          <span class="dot"></span>
-          <span class="text" id="apiStatusText">API Kontrol Ediliyor</span>
+        <button id="apiStatusBtn" class="status-pill checking" title="API Durumu (Tıklayarak test edin)">
+          <span class="status-dot"></span>
+          <span class="status-label" id="apiStatusText">API Kontrol Ediliyor</span>
         </button>
         <!-- Ayarlar Butonu -->
-        <button id="openSettingsBtn" class="icon-btn" title="API Ayarları" aria-label="Ayarlar">
+        <button id="openSettingsBtn" class="btn-icon" title="Sunucu Ayarları" aria-label="Ayarlar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -47,253 +52,274 @@
     </div>
   </header>
 
-  <!-- ANA İÇERİK -->
-  <main class="main-container">
+  <!-- ANA İÇERİK KONTEYNERİ -->
+  <main class="main-wrapper">
     
-    <!-- HERO BAŞLIK -->
-    <section class="hero-section">
-      <div class="badge-tag">Reklamsız · Hızlı · Ücretsiz</div>
-      <h1 class="hero-title">Video ve Müziği <br><span class="gradient-text">Doğrudan İndirin</span></h1>
-      <p class="hero-subtitle">YouTube ve desteklenen sitelerdeki linkleri yapıştırın; MP4 veya MP3 formatında anında cihazınıza kaydedin.</p>
+    <!-- HERO BAŞLIK BÖLÜMÜ -->
+    <section class="hero-block">
+      <div class="pill-badge">
+        <span class="badge-spark">✦</span> Reklamsız · Yüksek Kalite · Hızlı
+      </div>
+      <h1 class="main-headline">
+        Video, Müzik ve Altyazı <br>
+        <span class="gradient-text">Doğrudan Cihazınıza</span>
+      </h1>
+      <p class="hero-subtext">
+        YouTube veya web linkini yapıştırın; en yüksek çözünürlükte MP4 video, 320 kbps MP3 müzik veya SRT altyazıyı anında indirin.
+      </p>
     </section>
 
-    <!-- ANA İNDİRME KARTI -->
-    <section class="download-card">
+    <!-- HIZLI API BAĞLANTI ÇUBUĞU (API hazır değilse otomatik gösterilir) -->
+    <section id="quickApiBar" class="api-notice-bar" style="display: none;">
+      <div class="notice-icon">⚡</div>
+      <div class="notice-content">
+        <div class="notice-title">Render API Sunucusu Bağlantısı</div>
+        <div class="notice-desc">Backend adresini buraya yapıştırıp Bağlan'a tıklayabilirsiniz.</div>
+        <div class="notice-input-wrap">
+          <input type="url" id="quickApiInput" class="notice-input" placeholder="https://ytdownloader-p8pr.onrender.com" spellcheck="false">
+          <button type="button" id="quickApiSaveBtn" class="notice-btn">Bağlan</button>
+        </div>
+        <div id="quickApiStatus" class="notice-status" style="display: none;"></div>
+      </div>
+    </section>
 
-      <!-- HIZLI API BAĞLANTI BARI (İlk açılışta veya bağlantı yoksa görünür) -->
-      <div id="quickApiBar" class="quick-api-bar" style="display: none;">
-        <div class="api-bar-header">
-          <span class="api-bar-icon">⚡</span>
-          <div class="api-bar-title-wrap">
-            <span class="api-bar-title">Render API Sunucusu Bağlantısı</span>
-            <span class="api-bar-sub">Render'dan aldığınız web service linkini buraya yapıştırıp Bağlan'a tıklayın</span>
+    <!-- ANA İNDİRİCİ KARTI -->
+    <section class="downloader-card">
+
+      <!-- MOD SEÇİM SEKMELERİ (Video / Müzik / Altyazı) -->
+      <div class="mode-tabs-container">
+        <div class="mode-tabs">
+          <button type="button" class="tab-item active" data-mode="video">
+            <span class="tab-icon">🎬</span>
+            <span class="tab-name">Video</span>
+            <span class="tab-tag">MP4</span>
+          </button>
+          <button type="button" class="tab-item" data-mode="music">
+            <span class="tab-icon">🎵</span>
+            <span class="tab-name">Müzik</span>
+            <span class="tab-tag">320k MP3</span>
+          </button>
+          <button type="button" class="tab-item" data-mode="subtitle">
+            <span class="tab-icon">📝</span>
+            <span class="tab-name">Altyazı</span>
+            <span class="tab-tag">SRT</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- LİNK GİRİŞ ÇUBUĞU -->
+      <div class="input-panel">
+        <div class="input-glow-wrapper">
+          <div class="input-leading-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
+          </div>
+          <input 
+            type="url" 
+            id="urlInput" 
+            class="main-url-input" 
+            placeholder="YouTube veya video linkini buraya yapıştırın..." 
+            autocomplete="off" 
+            spellcheck="false"
+          >
+          <button id="clearInputBtn" class="clear-input-btn" type="button" title="Temizle" style="display: none;">
+            &times;
+          </button>
+          <button id="pasteBtn" class="paste-pill-btn" type="button" title="Panodan Yapıştır">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            <span>Yapıştır</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- KALİTE VE AYARLAR BARI -->
+      <div class="options-bar">
+        <!-- Video Kalite Seçenekleri (Sadece Video Modunda) -->
+        <div id="qualityRow" class="quality-selector-row">
+          <span class="selector-label">Çözünürlük:</span>
+          <div class="chip-group">
+            <button type="button" class="chip active" data-quality="best">Otomatik En İyi</button>
+            <button type="button" class="chip" data-quality="1080">1080p FHD</button>
+            <button type="button" class="chip" data-quality="720">720p HD</button>
+            <button type="button" class="chip" data-quality="480">480p SD</button>
           </div>
         </div>
-        <div class="api-bar-input-row">
-          <input type="url" id="quickApiInput" class="api-bar-input" placeholder="https://servis-adiniz.onrender.com" spellcheck="false">
-          <button type="button" id="quickApiSaveBtn" class="api-bar-btn">Bağlan</button>
-        </div>
-        <div id="quickApiStatus" class="api-bar-status" style="display: none;"></div>
-      </div>
 
-      <!-- URL Giriş Çubuğu -->
-      <div class="input-container">
-        <div class="input-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-          </svg>
+        <!-- Müzik Modu Bilgilendirmesi -->
+        <div id="musicNotice" class="mode-info-badge" style="display: none;">
+          <span class="badge-icon">🎧</span>
+          <span>En yüksek ses kalitesi (320 kbps), başlık, sanatçı ve kapak resmi ile MP3 olarak kaydedilir.</span>
         </div>
-        <input 
-          type="url" 
-          id="urlInput" 
-          class="url-input" 
-          placeholder="https://www.youtube.com/watch?v=..." 
-          autocomplete="off" 
-          spellcheck="false"
-        >
-        <button id="pasteBtn" class="paste-btn" type="button" title="Panodan Yapıştır">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-          </svg>
-          <span class="btn-lbl">Yapıştır</span>
-        </button>
-      </div>
 
-      <!-- VİDEO ÖNİZLEME (Otomatik Çıkar) -->
-      <div id="videoPreview" class="video-preview" style="display: none;">
-        <div class="preview-thumb-wrap">
-          <img id="previewThumb" src="" alt="Önizleme" class="preview-thumb">
-          <span id="previewDuration" class="preview-duration"></span>
-        </div>
-        <div class="preview-info">
-          <h4 id="previewTitle" class="preview-title">—</h4>
-          <p id="previewAuthor" class="preview-author">—</p>
+        <!-- Altyazı Modu Bilgilendirmesi -->
+        <div id="subtitleNotice" class="mode-info-badge" style="display: none;">
+          <span class="badge-icon">📝</span>
+          <span>Türkçe ve orijinal dildeki altyazı dosyası (.SRT) doğrudan ayrıştırılıp indirilir.</span>
         </div>
       </div>
 
-      <!-- FORMAT MODLARI -->
-      <div class="format-selection">
-        <span class="section-label">Format Seçimi</span>
-        <div class="mode-grid">
-          <button class="mode-card active" data-mode="video">
-            <div class="mode-icon-circle video-accent">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="23 7 16 12 23 17 23 7"/>
-                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
-              </svg>
-            </div>
-            <div class="mode-details">
-              <span class="mode-title">Video</span>
-              <span class="mode-sub">MP4 · Full HD</span>
-            </div>
-          </button>
-
-          <button class="mode-card" data-mode="music">
-            <div class="mode-icon-circle music-accent">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 18V5l12-2v13"/>
-                <circle cx="6" cy="18" r="3"/>
-                <circle cx="18" cy="16" r="3"/>
-              </svg>
-            </div>
-            <div class="mode-details">
-              <span class="mode-title">Müzik / Ses</span>
-              <span class="mode-sub">MP3 · 320 kbps</span>
-            </div>
-          </button>
-
-          <button class="mode-card" data-mode="subtitle">
-            <div class="mode-icon-circle sub-accent">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-              </svg>
-            </div>
-            <div class="mode-details">
-              <span class="mode-title">Altyazı</span>
-              <span class="mode-sub">SRT · TR & EN</span>
-            </div>
-          </button>
+      <!-- VİDEO ÖNİZLEME KARTI (Otomatik Belirir) -->
+      <div id="videoPreview" class="preview-card" style="display: none;">
+        <div class="preview-media">
+          <img id="previewThumb" src="" alt="Video Önizleme" class="preview-img">
+          <span id="previewDuration" class="preview-time-tag"></span>
         </div>
-
-        <!-- Kalite Seçenekleri (Sadece Video modunda görünür) -->
-        <div id="qualityRow" class="quality-row">
-          <span class="quality-label">Çözünürlük:</span>
-          <div class="quality-chips">
-            <button class="quality-chip active" data-quality="best">En Yüksek</button>
-            <button class="quality-chip" data-quality="1080">1080p</button>
-            <button class="quality-chip" data-quality="720">720p</button>
-            <button class="quality-chip" data-quality="480">480p</button>
+        <div class="preview-meta">
+          <h3 id="previewTitle" class="preview-heading">—</h3>
+          <p id="previewAuthor" class="preview-channel">—</p>
+          <div class="preview-badges">
+            <span class="badge-chip">Hazır</span>
+            <span id="previewFormatLabel" class="badge-chip highlight">MP4 Video</span>
           </div>
         </div>
       </div>
 
-      <!-- İNDİR BUTONU -->
-      <button id="startDownloadBtn" class="action-btn">
-        <span class="btn-content">
-          <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          <span class="btn-text">İndirmeyi Başlat</span>
-        </span>
-        <span class="btn-spinner" style="display: none;">
-          <span class="spinner-ring"></span>
-        </span>
-      </button>
-
-      <!-- İLERLEME / DURUM ALANI -->
-      <div id="statusBox" class="status-box" style="display: none;">
-        <div class="status-top">
-          <div class="status-meta">
-            <span id="statusBadge" class="status-badge queued">Sırada</span>
-            <span id="statusTitle" class="status-filename">—</span>
-          </div>
-          <span id="statusPercent" class="status-percentage">0%</span>
-        </div>
-
-        <div class="progress-track">
-          <div id="progressBar" class="progress-bar-fill"></div>
-        </div>
-
-        <div class="status-footer">
-          <span id="statusSpeed" class="stat-item"></span>
-          <span id="statusEta" class="stat-item"></span>
-        </div>
-
-        <!-- HATA BİLDİRİMİ -->
-        <div id="errorMessage" class="error-banner" style="display: none;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <span id="errorText">Bir hata oluştu.</span>
-        </div>
-
-        <!-- TAMAMLANINCA ÇIKAN KAYDET BUTONU -->
-        <div id="saveBox" class="save-box" style="display: none;">
-          <a id="saveFileBtn" href="#" class="save-btn" download>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <!-- ANA İNDİRME BUTONU -->
+      <div class="action-container">
+        <button id="startDownloadBtn" class="download-primary-btn" type="button">
+          <span class="btn-content">
+            <svg class="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/>
               <line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
-            <span>Dosyayı Cihaza Kaydet (<span id="savedFileSize"></span>)</span>
+            <span id="btnText" class="btn-text">Videoyu İndir (MP4)</span>
+          </span>
+          <span class="btn-spinner" style="display: none;">
+            <span class="spinner-ring"></span>
+          </span>
+        </button>
+      </div>
+
+      <!-- CANLI İLERLEME VE DURUM BİLGİSİ -->
+      <div id="statusBox" class="progress-panel" style="display: none;">
+        <div class="panel-header">
+          <div class="title-with-badge">
+            <span id="statusBadge" class="live-badge queued">Sırada</span>
+            <span id="statusTitle" class="job-title">İşleniyor...</span>
+          </div>
+          <span id="statusPercent" class="live-percent">0%</span>
+        </div>
+
+        <!-- İlerleme Çubuğu -->
+        <div class="progress-track-outer">
+          <div id="progressBar" class="progress-bar-inner"></div>
+        </div>
+
+        <div class="panel-meta">
+          <span id="statusSpeed" class="meta-item"></span>
+          <span id="statusEta" class="meta-item"></span>
+        </div>
+
+        <!-- HATA KUTUSU -->
+        <div id="errorMessage" class="error-callout" style="display: none;">
+          <div class="err-icon">⚠️</div>
+          <div class="err-content">
+            <div class="err-title">İndirme Başarısız Oldu</div>
+            <div id="errorText" class="err-text">Bir hata oluştu.</div>
+          </div>
+        </div>
+
+        <!-- TAMAMLANINCA ÇIKAN KAYDET BUTONU -->
+        <div id="saveBox" class="success-callout" style="display: none;">
+          <div class="success-message">
+            <span class="check-icon">✓</span>
+            <div class="success-text-wrap">
+              <strong>İndirme Tamamlandı!</strong>
+              <span>Dosya tarayıcınıza aktarılıyor. Otomatik başlamadıysa aşağıdaki butona tıklayın:</span>
+            </div>
+          </div>
+          <a id="saveFileBtn" href="#" class="direct-save-btn" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Dosyayı Cihaza Kaydet (<span id="savedFileSize">Hazır</span>)</span>
           </a>
         </div>
       </div>
 
     </section>
 
-    <!-- GEÇMİŞ İNDİRMELER -->
-    <section id="historySection" class="history-section" style="display: none;">
-      <div class="section-header">
-        <h3 class="section-heading">Son İndirmeler</h3>
-        <button id="clearHistoryBtn" class="clear-btn">Temizle</button>
+    <!-- SON İNDİRMELER (GEÇMİŞ & İSTATİSTİK) -->
+    <section id="historySection" class="history-card" style="display: none;">
+      <div class="card-header">
+        <div class="header-left">
+          <span class="header-icon">📂</span>
+          <div>
+            <h3 class="header-title">Son İndirilenler</h3>
+            <span id="historyStats" class="header-subtitle">0 dosya indirildi</span>
+          </div>
+        </div>
+        <button id="clearHistoryBtn" class="text-btn">Temizle</button>
       </div>
-      <div id="historyList" class="history-list"></div>
+      <div id="historyList" class="history-items-list"></div>
     </section>
 
-    <!-- ÖZELLİKLER BÖLÜMÜ -->
-    <section class="features-grid">
-      <div class="feature-card">
-        <div class="feature-icon">⚡</div>
-        <h4>Yüksek Hız</h4>
-        <p>Doğrudan sunucu üzerinden en yüksek bant genişliği ile indirme yapılır.</p>
+    <!-- ÖZELLİKLER VE BİLGİ KARTLARI -->
+    <section class="info-grid">
+      <div class="info-card">
+        <div class="info-card-icon">⚡</div>
+        <h4 class="info-card-title">Yüksek Hızlı İndirme</h4>
+        <p class="info-card-desc">Gelişmiş Python motoru ve FFmpeg ile dosyalar en yüksek bant genişliğiyle sunucuda işlenir ve aktarılır.</p>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">🎧</div>
-        <h4>320 kbps MP3</h4>
-        <p>Müzik modunda kayıpsız en iyi kalitede ses dosyası olarak dönüştürülür.</p>
+      <div class="info-card">
+        <div class="info-card-icon">🎧</div>
+        <h4 class="info-card-title">Kristal Netliğinde Ses</h4>
+        <p class="info-card-desc">Müzik modunda 320 kbps MP3 formatına kayıpsız dönüştürülür; sanatçı ve albüm etiketleri korunur.</p>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">📱</div>
-        <h4>Tüm Cihazlarla Uyumlu</h4>
-        <p>Telefon, tablet veya bilgisayar; indirdiğiniz dosyalar her oynatıcıda kusursuz çalışır.</p>
+      <div class="info-card">
+        <div class="info-card-icon">📱</div>
+        <h4 class="info-card-title">Mobil & PC Tam Uyumlu</h4>
+        <p class="info-card-desc">iPhone, Android, tablet, Mac veya Windows; indirilen videolar her standart oynatıcıda hatasız ses ve görüntü verir.</p>
       </div>
     </section>
 
   </main>
 
   <!-- AYARLAR MODALI -->
-  <div id="settingsModal" class="modal-backdrop" style="display: none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 class="modal-title">API Sunucusu Ayarları</h3>
-        <button id="closeSettingsBtn" class="close-btn" aria-label="Kapat">&times;</button>
+  <div id="settingsModal" class="modal-layer" style="display: none;">
+    <div class="modal-window">
+      <div class="modal-top">
+        <div class="modal-title-wrap">
+          <span class="modal-badge">Ayarlar</span>
+          <h3 class="modal-heading">API Sunucusu Yönetimi</h3>
+        </div>
+        <button id="closeSettingsBtn" class="btn-close" aria-label="Kapat">&times;</button>
       </div>
-      <div class="modal-body">
-        <p class="modal-desc">
-          Sitenin çalışması için arka plandaki Python API adresinizi bağlayın (örneğin Render, Railway veya yerel adresiniz).
+      <div class="modal-content">
+        <p class="modal-hint">
+          Sitenin video indirmesi için bağlandığı Render backend sunucusu adresi:
         </p>
-        <div class="field-group">
-          <label for="apiUrlInput" class="field-label">API Sunucu Adresi (URL):</label>
+        <div class="form-group">
+          <label for="apiUrlInput" class="form-label">Backend API URL:</label>
           <input 
             type="url" 
             id="apiUrlInput" 
-            class="modal-input" 
-            placeholder="https://downloader-api.onrender.com"
+            class="form-control" 
+            placeholder="https://ytdownloader-p8pr.onrender.com"
+            spellcheck="false"
           >
         </div>
-        <div id="testResult" class="test-result" style="display: none;"></div>
+        <div id="testResult" class="test-feedback" style="display: none;"></div>
       </div>
-      <div class="modal-footer">
-        <button id="testApiBtn" class="sec-btn">Bağlantıyı Test Et</button>
-        <button id="saveApiBtn" class="pri-btn">Kaydet</button>
+      <div class="modal-bottom">
+        <button id="testApiBtn" class="btn-ghost" type="button">Bağlantıyı Test Et</button>
+        <button id="saveApiBtn" class="btn-highlight" type="button">Kaydet</button>
       </div>
     </div>
   </div>
 
-  <!-- BİLDİRİM TOAST KUTUSU -->
-  <div id="toastBox" class="toast-box"></div>
+  <!-- TOAST BİLDİRİM KAPSAYICISI -->
+  <div id="toastBox" class="toast-stack"></div>
 
-  <!-- YAPILANDIRMA VE UYGULAMA KODU -->
+  <!-- UYGULAMA BETİKLERİ -->
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>

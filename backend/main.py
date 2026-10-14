@@ -142,15 +142,18 @@ class InfoRequest(BaseModel):
 
 
 def clean_old_files():
-    """30 dakikadan eski geçici dosyaları temizler."""
+    """30 dakikadan eski geçici dosya ve klasörleri temizler."""
     now = time.time()
     try:
-        for f in TEMP_DOWNLOAD_DIR.glob("*"):
-            if f.is_file() and (now - f.stat().st_mtime > 1800):
-                try:
-                    f.unlink(missing_ok=True)
-                except Exception:
-                    pass
+        for p in TEMP_DOWNLOAD_DIR.glob("*"):
+            try:
+                if (now - p.stat().st_mtime) > 1800:
+                    if p.is_dir():
+                        shutil.rmtree(p, ignore_errors=True)
+                    elif p.is_file():
+                        p.unlink(missing_ok=True)
+            except Exception:
+                pass
         # Eski tamamlanmış görevleri de hafızadan temizle
         to_del = [tid for tid, t in tasks.items() if now - t.get("created_at", now) > 3600]
         for tid in to_del:
@@ -246,7 +249,7 @@ def _run_download_task(task_id: str, url: str, mode: str, quality: str):
         opts["skip_download"] = True
         opts["writesubtitles"] = True
         opts["writeautomaticsub"] = True
-        opts["subtitleslangs"] = ["tr", "en"]
+        opts["subtitleslangs"] = ["tr", "tr-orig", "en", "en-orig", "all"]
         opts["subtitlesformat"] = "srt/best"
         opts["postprocessors"] = [{
             "key": "FFmpegSubtitlesConvertor",
@@ -262,8 +265,10 @@ def _run_download_task(task_id: str, url: str, mode: str, quality: str):
             title = (info or {}).get("title") or "indirilen_dosya"
 
         # İndirilen dosyayı bul
-        files = [f for f in task_dir.glob("*") if f.is_file() and not f.name.endswith(".part") and not f.name.endswith(".ytdl")]
+        files = [f for f in task_dir.rglob("*") if f.is_file() and not f.name.endswith(".part") and not f.name.endswith(".ytdl")]
         if not files:
+            if mode == "subtitle":
+                raise RuntimeError("Bu video için indirilebilir altyazı bulunamadı.")
             raise RuntimeError("Dosya indirilemedi veya çıktı bulunamadı.")
         
         # En büyük veya en yeni dosyayı al

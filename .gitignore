@@ -8,6 +8,7 @@ __pycache__/
 araçlar/ffmpeg/
 araçlar/*.zip
 *.exe
+*.dll
 
 # İndirilen medya ve geçici dosyalar
 indirilen video/
@@ -18,11 +19,31 @@ backend/temp_downloads/
 *.part
 *.ytdl
 *.temp
+*.mp4
+*.mp3
+*.m4a
+*.webm
+*.srt
+*.vtt
 
-# Gizli bilgiler ve oturum çerezleri
+# Gizli bilgiler, oturum çerezleri ve ortam değişkenleri (ASLA GITHUB'A PUSHLANMAZ)
 cookies.txt
+*cookies*.txt
+backend/*cookies*.txt
 env_cookies.txt
+.env
+.env.*
+*.env
+*.token
+*.pem
+*.key
+credentials*.json
+secrets/
 .freebuff/
+
+# Loglar
+*.log
+npm-debug.log*
 
 # OS / Editör dosyaları
 .DS_Store
