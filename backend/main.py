@@ -316,8 +316,10 @@ def health_check():
     return {
         "status": "ok",
         "service": "Downloader(+) API",
-        "version": "1.0.0",
+        "version": "1.0.5",
         "ffmpeg": "ready" if ffmpeg_ready else "missing",
+        "has_cookies": _get_cookiefile() is not None,
+        "ytdlp_version": getattr(yt_dlp, "__version__", "unknown"),
         "active_tasks": len([t for t in tasks.values() if t["status"] in ("starting", "downloading", "processing")])
     }
 
