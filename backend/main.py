@@ -529,6 +529,39 @@ async def get_video_info(req: InfoRequest):
         raise HTTPException(status_code=400, detail=f"Video bilgisi alınamadı: {readable_err}")
 
 
+@app.get("/api/debug_info")
+def debug_info(url: str = "https://youtu.be/AOCdTASFoc4"):
+    import traceback
+    results = []
+    cf = _get_cookiefile()
+    strategies = [
+        {"name": "visionos", "use_cookies": False, "clients": ["visionos"]},
+        {"name": "android", "use_cookies": False, "clients": ["android"]},
+        {"name": "android_vr", "use_cookies": False, "clients": ["android_vr"]},
+        {"name": "tv", "use_cookies": False, "clients": ["tv"]},
+        {"name": "mweb", "use_cookies": False, "clients": ["mweb"]},
+    ]
+    if cf:
+        strategies.insert(0, {"name": "visionos_cerezli", "use_cookies": True, "clients": ["visionos"]})
+    for strat in strategies:
+        opts = {
+            "skip_download": True,
+            "quiet": True,
+            "no_warnings": True,
+            "extractor_args": {"youtube": {"player_client": strat["clients"]}},
+        }
+        if strat.get("use_cookies") and cf:
+            opts["cookiefile"] = cf
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                results.append({"strat": strat["name"], "success": True, "title": info.get("title")})
+                break
+        except Exception as e:
+            results.append({"strat": strat["name"], "success": False, "error": str(e), "tb": traceback.format_exc()[-300:]})
+    return {"results": results, "cookiefile_found": cf, "has_node": shutil.which("node") is not None}
+
+
 @app.post("/api/download")
 async def start_download(req: DownloadRequest, background_tasks: BackgroundTasks):
     url = req.url.strip()
