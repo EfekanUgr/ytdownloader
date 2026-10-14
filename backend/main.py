@@ -77,35 +77,47 @@ def find_ffmpeg_path() -> Optional[str]:
 
 def _get_cookiefile() -> Optional[str]:
     """cookies.txt dosyası veya Render/Railway YOUTUBE_COOKIES çevre değişkenini yükler."""
-    local_file = BASE_DIR / "cookies.txt"
-    if local_file.exists() and local_file.stat().st_size > 10:
-        return str(local_file)
-    
-    env_content = os.environ.get("YOUTUBE_COOKIES")
-    if env_content and env_content.strip():
-        cf = BASE_DIR / "env_cookies.txt"
+    candidate_paths = [
+        BASE_DIR / "cookies.txt",
+        BASE_DIR.parent / "cookies.txt",
+        Path("/etc/secrets/cookies.txt"),
+        Path("/etc/secrets/youtube_cookies.txt"),
+        Path("/etc/secrets/cookies"),
+        Path.home() / "cookies.txt",
+    ]
+    for p in candidate_paths:
         try:
-            content = env_content.strip()
-            # Eğer Base64 ile kodlanmışsa çöz
+            if p.exists() and p.stat().st_size > 50:
+                return str(p)
+        except Exception:
+            pass
+    
+    for env_key in ("YOUTUBE_COOKIES", "COOKIES", "COOKIE"):
+        env_content = os.environ.get(env_key)
+        if env_content and len(env_content.strip()) > 30:
+            cf = BASE_DIR / "env_cookies.txt"
             try:
-                decoded = base64.b64decode(content).decode("utf-8")
-                if "youtube.com" in decoded or "VISITOR" in decoded:
-                    content = decoded
-            except Exception:
-                pass
+                content = env_content.strip()
+                # Eğer Base64 ile kodlanmışsa çöz
+                try:
+                    decoded = base64.b64decode(content).decode("utf-8")
+                    if "youtube.com" in decoded or "VISITOR" in decoded:
+                        content = decoded
+                except Exception:
+                    pass
 
-            # Literal \n kaçışlarını gerçek satır sonuna çevir
-            if "\\n" in content and "\n" not in content:
-                content = content.replace("\\n", "\n")
+                # Literal \n kaçışlarını gerçek satır sonuna çevir
+                if "\\n" in content and "\n" not in content:
+                    content = content.replace("\\n", "\n")
 
-            # Netscape başlığı eksikse ekle
-            if not content.startswith("# Netscape") and not content.startswith("# HTTP"):
-                content = "# Netscape HTTP Cookie File\n" + content
+                # Netscape başlığı eksikse ekle
+                if not content.startswith("# Netscape") and not content.startswith("# HTTP"):
+                    content = "# Netscape HTTP Cookie File\n" + content
 
-            cf.write_text(content.strip() + "\n", encoding="utf-8")
-            return str(cf)
-        except Exception as e:
-            logger.warning(f"env_cookies yazılamadı: {e}")
+                cf.write_text(content.strip() + "\n", encoding="utf-8")
+                return str(cf)
+            except Exception as e:
+                logger.warning(f"env_cookies yazılamadı: {e}")
     return None
 
 
@@ -247,6 +259,9 @@ def format_error_message(err: Exception) -> str:
 
 def _build_ydl_opts(mode: str, quality: str, task_dir: Path, ffmpeg_dir: Optional[str] = None, progress_hook = None) -> Dict[str, Any]:
     """Video, müzik ve altyazı modları için standartlaştırılmış yt-dlp ayarlarını üretir."""
+    cf = _get_cookiefile()
+    clients = ["web", "mweb", "android", "ios"] if cf else ["android", "ios", "web"]
+    
     opts: Dict[str, Any] = {
         "outtmpl": str(task_dir / "%(title).100s [%(id)s].%(ext)s"),
         "noplaylist": True,
@@ -257,7 +272,7 @@ def _build_ydl_opts(mode: str, quality: str, task_dir: Path, ffmpeg_dir: Optiona
         "no_warnings": True,
         "extractor_args": {
             "youtube": {
-                "player_client": ["android", "ios", "web"]
+                "player_client": clients
             }
         },
     }
@@ -268,7 +283,6 @@ def _build_ydl_opts(mode: str, quality: str, task_dir: Path, ffmpeg_dir: Optiona
     if progress_hook:
         opts["progress_hooks"] = [progress_hook]
 
-    cf = _get_cookiefile()
     if cf:
         opts["cookiefile"] = cf
 
@@ -373,12 +387,20 @@ def health_check():
     clean_old_files()
     ffmpeg_ready = find_ffmpeg_path() is not None or shutil.which("ffmpeg") is not None
     ytdlp_ver = getattr(getattr(yt_dlp, "version", None), "__version__", "bilinmiyor")
+    cf = _get_cookiefile()
+    cf_size = 0
+    if cf and Path(cf).exists():
+        try:
+            cf_size = Path(cf).stat().st_size
+        except Exception:
+            pass
     return {
         "status": "ok",
         "service": "Downloader(+) API",
-        "version": "1.0.8",
+        "version": "1.0.9",
         "ffmpeg": "ready" if ffmpeg_ready else "missing",
-        "has_cookies": _get_cookiefile() is not None,
+        "has_cookies": cf is not None,
+        "cookie_bytes": cf_size,
         "ytdlp_version": ytdlp_ver,
         "active_tasks": len([t for t in tasks.values() if t["status"] in ("starting", "downloading", "processing")])
     }
@@ -391,6 +413,8 @@ async def get_video_info(req: InfoRequest):
         raise HTTPException(status_code=400, detail="Geçerli bir URL giriniz.")
 
     def _extract():
+        cf = _get_cookiefile()
+        clients = ["web", "mweb", "android", "ios"] if cf else ["android", "ios", "web"]
         opts = {
             "skip_download": True,
             "quiet": True,
@@ -398,13 +422,12 @@ async def get_video_info(req: InfoRequest):
             "retries": 5,
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["android", "ios", "web"]
+                    "player_client": clients
                 }
             },
         }
         if shutil.which("node"):
             opts["js_runtimes"] = {"node": {}}
-        cf = _get_cookiefile()
         if cf:
             opts["cookiefile"] = cf
         with yt_dlp.YoutubeDL(opts) as ydl:
