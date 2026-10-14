@@ -253,12 +253,10 @@ def _build_ydl_opts(mode: str, quality: str, task_dir: Path, ffmpeg_dir: Optiona
         "windowsfilenames": True,
         "quiet": True,
         "no_warnings": True,
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["tv", "web", "mweb", "android", "ios"]
-            }
-        },
     }
+
+    if shutil.which("node"):
+        opts["js_runtimes"] = {"node": {}}
 
     if progress_hook:
         opts["progress_hooks"] = [progress_hook]
@@ -371,7 +369,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "Downloader(+) API",
-        "version": "1.0.6",
+        "version": "1.0.7",
         "ffmpeg": "ready" if ffmpeg_ready else "missing",
         "has_cookies": _get_cookiefile() is not None,
         "ytdlp_version": ytdlp_ver,
@@ -391,12 +389,9 @@ async def get_video_info(req: InfoRequest):
             "quiet": True,
             "no_warnings": True,
             "retries": 5,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["tv", "web", "mweb", "android", "ios"]
-                }
-            },
         }
+        if shutil.which("node"):
+            opts["js_runtimes"] = {"node": {}}
         cf = _get_cookiefile()
         if cf:
             opts["cookiefile"] = cf
