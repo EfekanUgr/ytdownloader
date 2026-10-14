@@ -20,7 +20,7 @@ from typing import Dict, Any, Optional
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, HttpUrl
 import yt_dlp
 from yt_dlp.postprocessor import PostProcessor
@@ -470,6 +470,25 @@ def health_check():
     }
 
 
+def _get_active_bridge_url() -> Optional[str]:
+    """Netlify uzerindeki guncel ve aktif ev tuneli koprusunu bulur."""
+    env_bridge = os.environ.get("BRIDGE_URL")
+    if env_bridge and env_bridge.startswith("https://"):
+        return env_bridge.strip().rstrip("/")
+    try:
+        req = urllib.request.Request("https://ytindirici.netlify.app/config.js", headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=3) as r:
+            txt = r.read().decode("utf-8")
+            for line in txt.splitlines():
+                if "DEFAULT_API_URL" in line and "trycloudflare.com" in line:
+                    parts = line.split('"')
+                    if len(parts) >= 2 and parts[1].startswith("https://"):
+                        return parts[1].strip().rstrip("/")
+    except Exception:
+        pass
+    return None
+
+
 @app.post("/api/info")
 async def get_video_info(req: InfoRequest):
     url = req.url.strip()
@@ -524,6 +543,21 @@ async def get_video_info(req: InfoRequest):
             "view_count": info.get("view_count"),
         }
     except Exception as e:
+        # Eger Render bulut IP'si YouTube tarafindan engellendiyse ve aktif ev koprusu varsa kopruye yonlendir
+        bridge = _get_active_bridge_url()
+        if bridge and not os.name == "nt":
+            try:
+                logger.info(f"Render bulut engeli nedeniyle kopruye aktariliyor: {bridge}")
+                fwd_req = urllib.request.Request(
+                    f"{bridge}/api/info",
+                    data=json.dumps({"url": url}).encode("utf-8"),
+                    headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+                )
+                with urllib.request.urlopen(fwd_req, timeout=15) as r:
+                    return json.loads(r.read().decode("utf-8"))
+            except Exception as fwd_err:
+                logger.warning(f"Kopruye aktarma basarisiz: {fwd_err}")
+
         readable_err = format_error_message(e)
         logger.warning(f"Video bilgisi alınamadı [{url}]: {readable_err} ({e})")
         raise HTTPException(status_code=400, detail=f"Video bilgisi alınamadı: {readable_err}")
@@ -573,8 +607,32 @@ async def start_download(req: DownloadRequest, background_tasks: BackgroundTasks
         raise HTTPException(status_code=400, detail="Geçersiz indirme modu.")
 
     clean_old_files()
+
+    # Eger Render (Linux) sunucusundaysak ve aktif ev koprusu varsa, gorevi dogrudan kopruye ilet
+    bridge = _get_active_bridge_url()
+    if bridge and not os.name == "nt":
+        try:
+            logger.info(f"Render indirme istegini ev koprusune aktariyor: {bridge}")
+            fwd_req = urllib.request.Request(
+                f"{bridge}/api/download",
+                data=json.dumps({"url": url, "mode": mode, "quality": req.quality or "best"}).encode("utf-8"),
+                headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+            )
+            with urllib.request.urlopen(fwd_req, timeout=10) as r:
+                res_data = json.loads(r.read().decode("utf-8"))
+                tid = res_data.get("task_id")
+                if tid:
+                    tasks[tid] = {
+                        "id": tid,
+                        "bridge_url": bridge,
+                        "forwarded": True,
+                        "created_at": time.time()
+                    }
+                    return res_data
+        except Exception as fwd_err:
+            logger.warning(f"Download kopru aktarma hatasi: {fwd_err}")
+
     task_id = str(uuid.uuid4())[:8]
-    
     tasks[task_id] = {
         "id": task_id,
         "url": url,
@@ -602,15 +660,35 @@ async def start_download(req: DownloadRequest, background_tasks: BackgroundTasks
 def check_status(task_id: str):
     task = tasks.get(task_id)
     if not task:
+        # Belki kopruye aktarilmis bir gorevdir
+        bridge = _get_active_bridge_url()
+        if bridge and not os.name == "nt":
+            try:
+                r = urllib.request.urlopen(f"{bridge}/api/status/{task_id}", timeout=5)
+                return json.loads(r.read().decode("utf-8"))
+            except Exception:
+                pass
         raise HTTPException(status_code=404, detail="Görev bulunamadı.")
+
+    if task.get("forwarded") and task.get("bridge_url"):
+        try:
+            r = urllib.request.urlopen(f"{task['bridge_url']}/api/status/{task_id}", timeout=5)
+            return json.loads(r.read().decode("utf-8"))
+        except Exception:
+            return task
+
     return task
 
 
 @app.get("/api/file/{task_id}")
 def download_file(task_id: str, background_tasks: BackgroundTasks):
     task = tasks.get(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Görev bulunamadı.")
+    if not task or task.get("forwarded"):
+        bridge = (task and task.get("bridge_url")) or _get_active_bridge_url()
+        if bridge and not os.name == "nt":
+            return RedirectResponse(f"{bridge}/api/file/{task_id}")
+        if not task:
+            raise HTTPException(status_code=404, detail="Görev bulunamadı.")
     
     if task["status"] != "completed" or not task.get("file_path"):
         raise HTTPException(status_code=400, detail="Dosya henüz hazır değil veya indirme başarısız.")

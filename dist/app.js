@@ -40,24 +40,73 @@
 
   function getApiUrl() {
     const isHttps = window.location.protocol === 'https:';
-    const saved = localStorage.getItem('downloader_api_url');
 
-    // Canlı sitede (HTTPS) geçmiş testlerden kalan 127.0.0.1 veya localhost kalıntılarını otomatik sil
-    if (saved && isHttps && (saved.includes('127.0.0.1') || saved.includes('localhost') || !saved.startsWith('https://'))) {
-      localStorage.removeItem('downloader_api_url');
-    }
-
-    const validSaved = localStorage.getItem('downloader_api_url');
-    if (validSaved && validSaved.trim()) return cleanUrl(validSaved);
-
+    // 1. window.CONFIG içindeki aktif köprü/tünel adresi (en yüksek öncelik)
     if (window.CONFIG && window.CONFIG.DEFAULT_API_URL) {
       const def = cleanUrl(window.CONFIG.DEFAULT_API_URL);
-      if (isHttps && (def.includes('127.0.0.1') || def.includes('localhost'))) {
-        return '';
+      // Eski onrender.com veya uyumsuz eski kayıtları temizle
+      const saved = localStorage.getItem('downloader_api_url');
+      if (saved && (saved.includes('onrender.com') || saved !== def)) {
+        localStorage.removeItem('downloader_api_url');
       }
-      return def;
+      if (def && (!isHttps || def.startsWith('https://'))) {
+        return def;
+      }
     }
+
+    // 2. Kullanıcının elle girdiği özel adres
+    const validSaved = localStorage.getItem('downloader_api_url');
+    if (validSaved && validSaved.trim() && (!isHttps || validSaved.startsWith('https://'))) {
+      return cleanUrl(validSaved);
+    }
+
+    // 3. Yedek: Render adresi
+    if (window.CONFIG && window.CONFIG.RENDER_API_URL) {
+      return cleanUrl(window.CONFIG.RENDER_API_URL);
+    }
+
     return isHttps ? '' : 'http://127.0.0.1:8000';
+  }
+
+  async function apiFetch(endpoint, options = {}) {
+    const primary = getApiUrl();
+    const fallback = (window.CONFIG?.DEFAULT_API_URL && primary !== window.CONFIG.DEFAULT_API_URL)
+      ? window.CONFIG.DEFAULT_API_URL
+      : window.CONFIG?.RENDER_API_URL;
+
+    try {
+      const res = await fetch(`${primary}${endpoint}`, options);
+      if (res.ok) return { res, ok: true, url: primary };
+
+      const clone = res.clone();
+      const errJson = await clone.json().catch(() => null);
+      const isBlock = res.status >= 500 || (errJson && JSON.stringify(errJson).includes('kısıtladı'));
+
+      if (isBlock && fallback && fallback !== primary) {
+        console.warn(`[Downloader] ${primary} yanıt veremedi, yedek (${fallback}) deneniyor...`);
+        const fbRes = await fetch(`${fallback}${endpoint}`, options);
+        if (fbRes.ok) {
+          setApiUrl(fallback);
+          return { res: fbRes, ok: true, url: fallback };
+        }
+      }
+      return { res, ok: false, url: primary };
+    } catch (err) {
+      if (fallback && fallback !== primary) {
+        console.warn(`[Downloader] ${primary} erişilemedi, yedek (${fallback}) deneniyor...`);
+        try {
+          const fbRes = await fetch(`${fallback}${endpoint}`, options);
+          if (fbRes.ok) {
+            setApiUrl(fallback);
+            return { res: fbRes, ok: true, url: fallback };
+          }
+          return { res: fbRes, ok: false, url: fallback };
+        } catch {
+          throw err;
+        }
+      }
+      throw err;
+    }
   }
 
   function setApiUrl(url) {
@@ -461,13 +510,12 @@
     }
 
     try {
-      const base = getApiUrl();
-      const res = await fetch(`${base}/api/info`, {
+      const { res, ok } = await apiFetch('/api/info', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })
       });
-      if (!res.ok) return;
+      if (!ok) return;
 
       const data = await res.json();
       if (data && data.title) {
@@ -504,9 +552,8 @@
     setLoading(true);
     resetStatusBox();
 
-    const base = getApiUrl();
     try {
-      const res = await fetch(`${base}/api/download`, {
+      const { res, ok, url: activeBase } = await apiFetch('/api/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -516,14 +563,14 @@
         })
       });
 
-      if (!res.ok) {
+      if (!ok) {
         const errData = await res.json().catch(() => null);
         throw new Error(errData?.detail || `Sunucu hatası: HTTP ${res.status}`);
       }
 
       const data = await res.json();
       State.activeTaskId = data.task_id;
-      startPolling(data.task_id);
+      startPolling(data.task_id, activeBase);
 
     } catch (err) {
       showError(err.message || 'API sunucusuna bağlanılamadı. Sağ üstteki API ayarını kontrol edin.');
@@ -531,14 +578,14 @@
     }
   }
 
-  function startPolling(taskId) {
+  function startPolling(taskId, activeBase) {
     if (State.pollTimer) clearInterval(State.pollTimer);
-    State.pollTimer = setInterval(() => pollStatus(taskId), 750);
-    pollStatus(taskId);
+    State.pollTimer = setInterval(() => pollStatus(taskId, activeBase), 750);
+    pollStatus(taskId, activeBase);
   }
 
-  async function pollStatus(taskId) {
-    const base = getApiUrl();
+  async function pollStatus(taskId, activeBase) {
+    const base = activeBase || getApiUrl();
     try {
       const res = await fetch(`${base}/api/status/${taskId}`);
       if (!res.ok) return;
@@ -547,7 +594,7 @@
       updateProgressUI(data);
 
       if (data.status === 'completed') {
-        finishDownload(data);
+        finishDownload(data, activeBase);
       } else if (data.status === 'error') {
         clearInterval(State.pollTimer);
         showError(data.error || 'İndirme sırasında bir hata meydana geldi.');
@@ -583,7 +630,7 @@
     statusEta.textContent = data.eta ? `⏱ Kalan: ~${data.eta} sn` : '';
   }
 
-  function finishDownload(data) {
+  function finishDownload(data, activeBase) {
     clearInterval(State.pollTimer);
     setLoading(false);
 
@@ -592,7 +639,7 @@
     statusSpeed.textContent = data.file_size ? `Boyut: ${data.file_size}` : '';
     statusEta.textContent = '';
 
-    const base = getApiUrl();
+    const base = activeBase || getApiUrl();
     const downloadUrl = `${base}/api/file/${data.id}`;
 
     // Otomatik indirmeyi tetikle
