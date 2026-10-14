@@ -151,4 +151,17 @@
 5. **Güvenlik ve Çerez Sızıntı Koruması:**
    - `.gitignore` dosyası `.env*`, `cookies.txt`, `secrets/` ve tüm medya uzantılarını dışlayacak şekilde sertleştirildi; depoya hiçbir hassas bilgi sızamaz.
 
+---
+
+## I) YouTube Datacenter İstemci ve Bot Koruması Güçlendirmesi (v1.0.6)
+
+1. **Bulut Veri Merkezi (Datacenter IP) Kısıtlamaları:**
+   - Render (Frankfurt) gibi bulut sunucularında YouTube, sadece mobil istemcilere (`android`, `ios`) ve `player_skip` parametresiyle web sayfası atlanan isteklere karşı `Failed to extract any player response` ve `Sign in to confirm you're not a bot` engeli uygulamaktadır.
+   - Yapılan iyileştirme ile `player_skip: ["webpage", "configs"]` kısıtı kaldırılmış; `player_client: ["tv", "web", "mweb", "android", "ios"]` sıralı istemci kademesi devreye alınmıştır. TV istemcisi bot meydan okumalarından etkilenmezken, web/mweb oturum çerezleriyle tam uyum sağlamaktadır.
+2. **Çerez Formatlama ve Kaçış Karakteri Çözücü:**
+   - Render çevre değişkeni `YOUTUBE_COOKIES` üzerinden aktarılan çerezlerde Base64 kodlama, kaçış karakterleri (`\n`) ve eksik `# Netscape HTTP Cookie File` başlığı otomatik olarak düzeltilecek şekilde güçlendirildi.
+3. **Kullanıcı Dostu Hata Mesajları ve UI Entegrasyonu:**
+   - YouTube'un teknik bot/çerez uyarıları ve ham `ERROR: [youtube]` çıktıları yakalanarak kullanıcıya doğrudan anlaşılır, estetik Türkçe uyarılar sunuldu.
+
+
 

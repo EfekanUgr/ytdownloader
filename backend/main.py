@@ -5,6 +5,7 @@ Render, Railway, Docker veya yerel ortamda çalışmak üzere optimize edilmişt
 """
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -77,14 +78,31 @@ def find_ffmpeg_path() -> Optional[str]:
 def _get_cookiefile() -> Optional[str]:
     """cookies.txt dosyası veya Render/Railway YOUTUBE_COOKIES çevre değişkenini yükler."""
     local_file = BASE_DIR / "cookies.txt"
-    if local_file.exists():
+    if local_file.exists() and local_file.stat().st_size > 10:
         return str(local_file)
     
     env_content = os.environ.get("YOUTUBE_COOKIES")
     if env_content and env_content.strip():
         cf = BASE_DIR / "env_cookies.txt"
         try:
-            cf.write_text(env_content.strip(), encoding="utf-8")
+            content = env_content.strip()
+            # Eğer Base64 ile kodlanmışsa çöz
+            try:
+                decoded = base64.b64decode(content).decode("utf-8")
+                if "youtube.com" in decoded or "VISITOR" in decoded:
+                    content = decoded
+            except Exception:
+                pass
+
+            # Literal \n kaçışlarını gerçek satır sonuna çevir
+            if "\\n" in content and "\n" not in content:
+                content = content.replace("\\n", "\n")
+
+            # Netscape başlığı eksikse ekle
+            if not content.startswith("# Netscape") and not content.startswith("# HTTP"):
+                content = "# Netscape HTTP Cookie File\n" + content
+
+            cf.write_text(content.strip() + "\n", encoding="utf-8")
             return str(cf)
         except Exception as e:
             logger.warning(f"env_cookies yazılamadı: {e}")
@@ -196,11 +214,16 @@ def _progress_hook_factory(task_id: str):
 
 def format_error_message(err: Exception) -> str:
     """Hata mesajlarını kullanıcı dostu, açıklayıcı Türkçe metinlere dönüştürür."""
-    err_msg = str(err).lower()
+    err_msg = str(err).lower().replace("’", "'").replace("`", "'")
     if "confirm your age" in err_msg or "age-restricted" in err_msg:
         return "Bu video yaş sınırlı olduğu için hesap doğrulaması veya çerez gerektiriyor."
-    if "sign in to confirm you're not a bot" in err_msg:
-        return "YouTube bot koruması algılandı. Lütfen birkaç dakika sonra tekrar deneyin veya çerez ekleyin."
+    if (
+        "sign in to confirm" in err_msg
+        or "not a bot" in err_msg
+        or "confirm you are not a bot" in err_msg
+        or "failed to extract any player response" in err_msg
+    ):
+        return "YouTube bot koruması algılandı. Çerez (cookies) ekleyerek bu engeli kalıcı olarak aşabilirsiniz."
     if "private" in err_msg:
         return "Bu video gizli veya erişime kapalı."
     if "members-only" in err_msg or "join this channel" in err_msg:
@@ -225,19 +248,15 @@ def _build_ydl_opts(mode: str, quality: str, task_dir: Path, ffmpeg_dir: Optiona
     opts: Dict[str, Any] = {
         "outtmpl": str(task_dir / "%(title).100s [%(id)s].%(ext)s"),
         "noplaylist": True,
-        "retries": 3,
+        "retries": 5,
         "fragment_retries": 5,
         "windowsfilenames": True,
         "quiet": True,
         "no_warnings": True,
         "extractor_args": {
             "youtube": {
-                "player_skip": ["webpage", "configs"],
-                "player_client": ["android", "ios"]
+                "player_client": ["tv", "web", "mweb", "android", "ios"]
             }
-        },
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
         },
     }
 
@@ -348,13 +367,14 @@ def _run_download_task(task_id: str, url: str, mode: str, quality: str):
 def health_check():
     clean_old_files()
     ffmpeg_ready = find_ffmpeg_path() is not None or shutil.which("ffmpeg") is not None
+    ytdlp_ver = getattr(getattr(yt_dlp, "version", None), "__version__", "bilinmiyor")
     return {
         "status": "ok",
         "service": "Downloader(+) API",
-        "version": "1.0.5",
+        "version": "1.0.6",
         "ffmpeg": "ready" if ffmpeg_ready else "missing",
         "has_cookies": _get_cookiefile() is not None,
-        "ytdlp_version": getattr(yt_dlp, "__version__", "unknown"),
+        "ytdlp_version": ytdlp_ver,
         "active_tasks": len([t for t in tasks.values() if t["status"] in ("starting", "downloading", "processing")])
     }
 
@@ -370,14 +390,11 @@ async def get_video_info(req: InfoRequest):
             "skip_download": True,
             "quiet": True,
             "no_warnings": True,
+            "retries": 5,
             "extractor_args": {
                 "youtube": {
-                    "player_skip": ["webpage", "configs"],
-                    "player_client": ["android", "ios"]
+                    "player_client": ["tv", "web", "mweb", "android", "ios"]
                 }
-            },
-            "http_headers": {
-                "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
             },
         }
         cf = _get_cookiefile()
@@ -400,7 +417,9 @@ async def get_video_info(req: InfoRequest):
             "view_count": info.get("view_count"),
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Video bilgisi alınamadı: {str(e)}")
+        readable_err = format_error_message(e)
+        logger.warning(f"Video bilgisi alınamadı [{url}]: {readable_err} ({e})")
+        raise HTTPException(status_code=400, detail=f"Video bilgisi alınamadı: {readable_err}")
 
 
 @app.post("/api/download")
