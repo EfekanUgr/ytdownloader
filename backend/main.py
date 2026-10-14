@@ -53,6 +53,11 @@ LOCAL_FFMPEG = BASE_DIR.parent / "araçlar" / "ffmpeg"
 if (LOCAL_FFMPEG / "ffmpeg.exe").exists():
     os.environ["PATH"] = str(LOCAL_FFMPEG) + os.pathsep + os.environ.get("PATH", "")
 
+# Linux static build fallback (build.sh tarafından indirilmişse)
+LINUX_FFMPEG = BASE_DIR / "ffmpeg_bin"
+if (LINUX_FFMPEG / "ffmpeg").exists():
+    os.environ["PATH"] = str(LINUX_FFMPEG) + os.pathsep + os.environ.get("PATH", "")
+
 # Görev durumu deposu
 executor = ThreadPoolExecutor(max_workers=3)
 tasks: Dict[str, Dict[str, Any]] = {}
@@ -62,6 +67,8 @@ def find_ffmpeg_path() -> Optional[str]:
     """Sistemde ffmpeg var mı kontrol et."""
     if (LOCAL_FFMPEG / "ffmpeg.exe").exists():
         return str(LOCAL_FFMPEG)
+    if (LINUX_FFMPEG / "ffmpeg").exists():
+        return str(LINUX_FFMPEG)
     if shutil.which("ffmpeg"):
         return str(Path(shutil.which("ffmpeg")).parent)
     return None
@@ -187,22 +194,40 @@ def _progress_hook_factory(task_id: str):
     return hook
 
 
-def _run_download_task(task_id: str, url: str, mode: str, quality: str):
-    task = tasks[task_id]
-    task["status"] = "starting"
+def format_error_message(err: Exception) -> str:
+    """Hata mesajlarını kullanıcı dostu, açıklayıcı Türkçe metinlere dönüştürür."""
+    err_msg = str(err).lower()
+    if "confirm your age" in err_msg or "age-restricted" in err_msg:
+        return "Bu video yaş sınırlı olduğu için hesap doğrulaması veya çerez gerektiriyor."
+    if "sign in to confirm you're not a bot" in err_msg:
+        return "YouTube bot koruması algılandı. Lütfen birkaç dakika sonra tekrar deneyin veya çerez ekleyin."
+    if "private" in err_msg:
+        return "Bu video gizli veya erişime kapalı."
+    if "members-only" in err_msg or "join this channel" in err_msg:
+        return "Bu içerik yalnızca kanal üyelerine özeldir."
+    if "unavailable" in err_msg or "does not exist" in err_msg or "not found" in err_msg:
+        return "Video bulunamadı veya yayından kaldırılmış."
+    if "copyright" in err_msg:
+        return "Telif hakkı kısıtlaması nedeniyle video indirilemiyor."
+    if "unsupported url" in err_msg or "is not a valid url" in err_msg:
+        return "Desteklenmeyen veya geçersiz bir video linki girdiniz."
+    if "altyazı bulunamadı" in err_msg or "no subtitles" in err_msg:
+        return "Bu video için indirilebilir altyazı dosyası bulunamadı."
     
-    task_dir = TEMP_DOWNLOAD_DIR / task_id
-    task_dir.mkdir(parents=True, exist_ok=True)
+    # Teknik karmaşık hata mesajlarını temizle
+    cleaned = re.sub(r'https?://\S+', '', str(err))
+    cleaned = re.sub(r'ERROR:\s*(\[[^\]]+\])?', '', cleaned).strip()
+    return f"İndirme başarısız: {cleaned[:140]}" if cleaned else "İndirme sırasında bir hata oluştu."
 
-    ffmpeg_dir = find_ffmpeg_path()
-    
+
+def _build_ydl_opts(mode: str, quality: str, task_dir: Path, ffmpeg_dir: Optional[str] = None, progress_hook = None) -> Dict[str, Any]:
+    """Video, müzik ve altyazı modları için standartlaştırılmış yt-dlp ayarlarını üretir."""
     opts: Dict[str, Any] = {
         "outtmpl": str(task_dir / "%(title).100s [%(id)s].%(ext)s"),
         "noplaylist": True,
         "retries": 3,
         "fragment_retries": 5,
         "windowsfilenames": True,
-        "progress_hooks": [_progress_hook_factory(task_id)],
         "quiet": True,
         "no_warnings": True,
         "extractor_args": {
@@ -215,6 +240,10 @@ def _run_download_task(task_id: str, url: str, mode: str, quality: str):
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
         },
     }
+
+    if progress_hook:
+        opts["progress_hooks"] = [progress_hook]
+
     cf = _get_cookiefile()
     if cf:
         opts["cookiefile"] = cf
@@ -256,6 +285,19 @@ def _run_download_task(task_id: str, url: str, mode: str, quality: str):
             "format": "srt",
         }]
 
+    return opts
+
+
+def _run_download_task(task_id: str, url: str, mode: str, quality: str):
+    task = tasks[task_id]
+    task["status"] = "starting"
+    
+    task_dir = TEMP_DOWNLOAD_DIR / task_id
+    task_dir.mkdir(parents=True, exist_ok=True)
+    ffmpeg_dir = find_ffmpeg_path()
+    
+    opts = _build_ydl_opts(mode, quality, task_dir, ffmpeg_dir, progress_hook=_progress_hook_factory(task_id))
+
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             if mode == "video":
@@ -271,7 +313,6 @@ def _run_download_task(task_id: str, url: str, mode: str, quality: str):
                 raise RuntimeError("Bu video için indirilebilir altyazı bulunamadı.")
             raise RuntimeError("Dosya indirilemedi veya çıktı bulunamadı.")
         
-        # En büyük veya en yeni dosyayı al
         downloaded_file = max(files, key=lambda f: f.stat().st_size)
         file_size_bytes = downloaded_file.stat().st_size
         
@@ -290,27 +331,16 @@ def _run_download_task(task_id: str, url: str, mode: str, quality: str):
         task["file_size"] = size_str
         logger.info(f"Görev tamamlandı [{task_id}]: {title} ({size_str})")
 
-    except yt_dlp.utils.DownloadError as de:
-        err_msg = str(de).lower()
-        if "confirm your age" in err_msg or "age-restricted" in err_msg:
-            readable_err = "Bu video yaş sınırlı olduğu için YouTube oturumu gerektiriyor."
-        elif "sign in to confirm you're not a bot" in err_msg:
-            readable_err = "YouTube bot koruması algılandı. Lütfen birkaç saniye sonra tekrar deneyin."
-        elif "private" in err_msg:
-            readable_err = "Bu video gizli veya erişime kapalı."
-        elif "copyright" in err_msg:
-            readable_err = "Telif hakkı nedeniyle bu içerik engellenmiş."
-        else:
-            readable_err = f"İndirme hatası: {str(de).split(':')[-1].strip()}"
-        
+    except Exception as e:
+        readable_err = format_error_message(e)
         task["status"] = "error"
         task["error"] = readable_err
-        logger.error(f"DownloadError [{task_id}]: {readable_err}")
-
-    except Exception as e:
-        task["status"] = "error"
-        task["error"] = f"Beklenmeyen hata: {str(e)}"
-        logger.exception(f"Genel hata [{task_id}]: {e}")
+        logger.error(f"Görev hatası [{task_id}]: {readable_err} ({e})")
+        # Hata durumunda yarım kalan artık dosyaları hemen temizle (Disk dolmasını önle)
+        try:
+            shutil.rmtree(task_dir, ignore_errors=True)
+        except Exception:
+            pass
 
 
 @app.get("/")
@@ -444,6 +474,20 @@ def download_file(task_id: str, background_tasks: BackgroundTasks):
         filename=filename,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Sunucu başladığında her 5 dakikada bir disk temizliği yapan arka plan görevini başlatır."""
+    async def periodic_cleaner():
+        while True:
+            await asyncio.sleep(300)
+            try:
+                clean_old_files()
+            except Exception as e:
+                logger.warning(f"Periyodik temizlik hatası: {e}")
+
+    asyncio.create_task(periodic_cleaner())
 
 
 if __name__ == "__main__":
