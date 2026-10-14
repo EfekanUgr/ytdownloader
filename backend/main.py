@@ -67,6 +67,23 @@ def find_ffmpeg_path() -> Optional[str]:
     return None
 
 
+def _get_cookiefile() -> Optional[str]:
+    """cookies.txt dosyası veya Render/Railway YOUTUBE_COOKIES çevre değişkenini yükler."""
+    local_file = BASE_DIR / "cookies.txt"
+    if local_file.exists():
+        return str(local_file)
+    
+    env_content = os.environ.get("YOUTUBE_COOKIES")
+    if env_content and env_content.strip():
+        cf = BASE_DIR / "env_cookies.txt"
+        try:
+            cf.write_text(env_content.strip(), encoding="utf-8")
+            return str(cf)
+        except Exception as e:
+            logger.warning(f"env_cookies yazılamadı: {e}")
+    return None
+
+
 class SesGuvenliPP(PostProcessor):
     """Birleştirilen videonun ses codec'ini kontrol eder; Opus ise AAC'ye çevirir."""
     def __init__(self, downloader=None, ffmpeg_dir=None):
@@ -187,16 +204,17 @@ def _run_download_task(task_id: str, url: str, mode: str, quality: str):
         "no_warnings": True,
         "extractor_args": {
             "youtube": {
-                "player_client": ["ios", "android"]
+                "player_skip": ["webpage", "configs"],
+                "player_client": ["android", "ios"]
             }
         },
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
         },
     }
-    cookie_path = BASE_DIR / "cookies.txt"
-    if cookie_path.exists():
-        opts["cookiefile"] = str(cookie_path)
+    cf = _get_cookiefile()
+    if cf:
+        opts["cookiefile"] = cf
 
     if ffmpeg_dir:
         opts["ffmpeg_location"] = ffmpeg_dir
@@ -317,16 +335,17 @@ async def get_video_info(req: InfoRequest):
             "no_warnings": True,
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["ios", "android"]
+                    "player_skip": ["webpage", "configs"],
+                    "player_client": ["android", "ios"]
                 }
             },
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
             },
         }
-        cookie_path = BASE_DIR / "cookies.txt"
-        if cookie_path.exists():
-            opts["cookiefile"] = str(cookie_path)
+        cf = _get_cookiefile()
+        if cf:
+            opts["cookiefile"] = cf
         with yt_dlp.YoutubeDL(opts) as ydl:
             return ydl.extract_info(url, download=False)
 
